@@ -1214,12 +1214,33 @@ export default function JournalSection({
               <span>+ Tambah Jurnal Baru</span>
             </button>
           </div>
+
           {displayedJournals.map((j, index) => {
             const attList = Array.isArray(j.attachments) && j.attachments.length > 0
               ? j.attachments
-              : (j.fotoUrl || j.fileName ? [{ type: j.evidenceType || (j.fotoUrl ? "image" : "document"), fotoUrl: j.fotoUrl, fileUrl: j.fileUrl || j.fotoUrl, fileName: j.fileName, fileSize: j.fileSize, docCategory: j.docCategory }] : []);
-            const photoAtt = attList.find(a => a.type === "image" && (a.fotoUrl || a.fileUrl));
-            const isPhoto = Boolean(photoAtt || j.fotoUrl);
+              : (j.fotoUrl || j.fileName || j.fileUrl ? [{ 
+                  type: j.evidenceType || ((j.fotoUrl || (j.fileName && /\.(jpe?g|png|gif|webp)$/i.test(j.fileName)) || (j.fileUrl && /\.(jpe?g|png|gif|webp)$/i.test(j.fileUrl))) ? "image" : "document"), 
+                  fotoUrl: j.fotoUrl || (j.evidenceType === "image" ? j.fileUrl : ""), 
+                  fileUrl: j.fileUrl || j.fotoUrl, 
+                  fileName: j.fileName, 
+                  fileSize: j.fileSize, 
+                  docCategory: j.docCategory 
+                }] : []);
+            const photoAtt = attList.find(a => 
+              a.type === "image" || 
+              a.fotoUrl || 
+              (a.fileUrl && /\.(jpe?g|png|gif|webp)$/i.test(a.fileUrl)) ||
+              (a.fileName && /\.(jpe?g|png|gif|webp)$/i.test(a.fileName))
+            ) || (j.fotoUrl ? { fotoUrl: j.fotoUrl, fileUrl: j.fotoUrl } : null);
+            const isPhoto = Boolean(
+              photoAtt || 
+              j.fotoUrl || 
+              j.evidenceType === "image" || 
+              (j.fileUrl && /\.(jpe?g|png|gif|webp)$/i.test(j.fileUrl)) ||
+              (j.fileName && /\.(jpe?g|png|gif|webp)$/i.test(j.fileName))
+            );
+            const photoUrl = photoAtt?.fotoUrl || photoAtt?.fileUrl || j.fotoUrl || 
+              ((j.evidenceType === "image" || (j.fileUrl && /\.(jpe?g|png|gif|webp)$/i.test(j.fileUrl))) ? j.fileUrl : "");
             const docAtt = attList.find(a => a.type !== "image" && (a.fileUrl || a.fileName));
             const hasDocument = Boolean(docAtt || (j.fileName && !isPhoto));
             // Tautan Drive asli: hanya jika linkUrl adalah URL eksternal dan BUKAN path lokal /uploads/
@@ -1254,25 +1275,37 @@ export default function JournalSection({
 
                 {/* Thumbnail Foto / Ikon Berkas */}
                 <div style={{ flexShrink: 0 }}>
-                  {isPhoto ? (
+                  {isPhoto && photoUrl ? (
                     <div 
-                      onClick={() => setActivePhotoModal({ ...j, fotoUrl: photoAtt.fotoUrl })}
+                      onClick={() => setActivePhotoModal({ ...j, fotoUrl: photoUrl })}
                       title="Klik untuk memperbesar foto"
                       style={{ 
                         width: "60px", 
                         height: "46px", 
-                        borderRadius: "4px", 
+                        borderRadius: "6px", 
                         overflow: "hidden", 
                         cursor: "pointer",
-                        border: "1px solid var(--border-strong)",
+                        border: "1px solid var(--border-strong, #cbd5e1)",
                         position: "relative",
-                        background: "#0f172a"
+                        background: "#0f172a",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center"
                       }}
                     >
                       <img 
-                        src={photoAtt.fotoUrl} 
+                        src={photoUrl} 
                         alt={j.aktivitas} 
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                          if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = "none";
+                          if (e.currentTarget.parentElement) {
+                            e.currentTarget.parentElement.style.background = "#f1f5f9";
+                            e.currentTarget.parentElement.innerHTML = '<span style="font-size:1.1rem" title="Foto lampiran">📷</span>';
+                          }
+                        }}
                       />
                       <div style={{
                         position: "absolute",
@@ -1283,7 +1316,8 @@ export default function JournalSection({
                         borderRadius: "3px",
                         padding: "1px 3px",
                         display: "flex",
-                        alignItems: "center"
+                        alignItems: "center",
+                        pointerEvents: "none"
                       }}>
                         <ZoomIn size={10} />
                       </div>
@@ -1292,11 +1326,11 @@ export default function JournalSection({
                     <div style={{ 
                       width: "46px", 
                       height: "46px", 
-                      borderRadius: "4px", 
+                      borderRadius: "6px", 
                       background: "var(--bg-tertiary)", 
                       display: "flex", 
                       alignItems: "center", 
-                      justifyContent: "center",
+                      justifyContent: "center", 
                       border: "1px solid var(--border-subtle)"
                     }}>
                       {renderFileIcon(attList[0]?.type || j.evidenceType, attList[0]?.docCategory || j.docCategory)}
@@ -1370,12 +1404,12 @@ export default function JournalSection({
                     )}
 
                     {/* Tombol Lihat Foto */}
-                    {isPhoto && (
+                    {isPhoto && photoUrl && (
                       <button
                         type="button"
                         onClick={() => setActivePhotoModal({
                           ...j,
-                          fotoUrl: photoAtt?.fotoUrl || photoAtt?.fileUrl || j.fotoUrl
+                          fotoUrl: photoUrl
                         })}
                         style={{
                           fontSize: "0.72rem",
@@ -1451,11 +1485,11 @@ export default function JournalSection({
 
                 {/* Tombol Aksi */}
                 <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", flexShrink: 0 }}>
-                  {isPhoto && (
+                  {isPhoto && photoUrl && (
                     <button
                       type="button"
                       className="btn btn-secondary btn-icon btn-sm"
-                      onClick={() => setActivePhotoModal(j)}
+                      onClick={() => setActivePhotoModal({ ...j, fotoUrl: photoUrl })}
                       title="Perbesar Foto"
                       style={{ width: "30px", height: "30px", padding: 0 }}
                     >

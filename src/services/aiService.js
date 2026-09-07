@@ -555,6 +555,11 @@ export function cleanDuplicatePhrases(str) {
   // 3. Bersihkan konjungsi berulang (misal: 'serta serta...', 'dan dan...')
   cleaned = cleaned.replace(/\b(serta|dan|lalu|kemudian)\s+\1\b/gi, "$1");
 
+  // 4. Bersihkan duplikasi istilah bertumpuk dalam tanda kurung (misal: "Istilah (Istilah (SINGKATAN))" -> "Istilah (SINGKATAN)")
+  cleaned = cleaned.replace(/([A-Za-z0-9\s]+?)\s*\(\s*\1\s*\(([^()]+)\)\s*\)/gi, "$1 ($2)");
+  cleaned = cleaned.replace(/([A-Za-z0-9\s]+?)\s*\(\s*\1\s*\)/gi, "$1");
+  cleaned = cleaned.replace(/\(([^()]+)\s*\(\1\)\)/gi, "($1)");
+
   return cleaned.trim();
 }
 
@@ -644,7 +649,7 @@ export function normalizeAbbreviations(text) {
 
   // 4. Singkatan Pendidikan & Satuan Pendidikan
   s = s.replace(/\bbimtek\b/gi, "Bimbingan Teknis (Bimtek)");
-  s = s.replace(/\btka\b/gi, "Tes Kemampuan Akademik (TKA)");
+  s = s.replace(/(?<!\()\btka\b(?!\))/gi, "Tes Kemampuan Akademik (TKA)");
   s = s.replace(/\banbk\b/gi, "Asesmen Nasional Berbasis Komputer (ANBK)");
   s = s.replace(/\bkbm\b/gi, "Kegiatan Belajar Mengajar (KBM)");
   s = s.replace(/\brpp\b/gi, "Rencana Pelaksanaan Pembelajaran (RPP)");

@@ -586,6 +586,7 @@ export function normalizeJournalAttachments(jrn) {
       filePath: att.filePath || att.fotoPath || "",
       fileName: att.fileName || (att.filePath ? path.basename(att.filePath) : `lampiran_${idx + 1}`),
       fileUrl: att.fileUrl || att.fotoUrl || "",
+      fotoUrl: att.fotoUrl || (att.type === "image" || (att.fileName && /\.(jpe?g|png|gif|webp)$/i.test(att.fileName)) ? (att.fileUrl || "") : ""),
       fileSize: att.fileSize || "",
       ext: att.ext || (att.fileName ? path.extname(att.fileName).toLowerCase() : "")
     }));
@@ -600,6 +601,7 @@ export function normalizeJournalAttachments(jrn) {
       filePath: jrn.fotoPath || "",
       fileName: jrn.fileName || (jrn.fotoPath ? path.basename(jrn.fotoPath) : "foto_kegiatan.jpg"),
       fileUrl: jrn.fileUrl || jrn.fotoUrl || "",
+      fotoUrl: jrn.fotoUrl || jrn.fileUrl || "",
       fileSize: jrn.fileSize || "",
       ext: jrn.fotoPath ? path.extname(jrn.fotoPath).toLowerCase() : ".jpg"
     });
@@ -655,6 +657,7 @@ export function addJournal(journalData) {
       filePath: att.filePath || att.fotoPath || "",
       fileName: att.fileName || (att.filePath ? path.basename(att.filePath) : `berkas_${idx + 1}`),
       fileUrl: att.fileUrl || att.fotoUrl || "",
+      fotoUrl: att.fotoUrl || (att.type === "image" || att.evidenceType === "image" ? (att.fileUrl || "") : ""),
       fileSize: att.fileSize || "",
       ext: att.ext || (att.fileName ? path.extname(att.fileName).toLowerCase() : "")
     }));
@@ -666,7 +669,7 @@ export function addJournal(journalData) {
   // Isi fallback field legacy dari lampiran pertama untuk kompatibilitas penuh
   const firstAtt = attachments[0] || null;
   const legacyFotoPath = journalData.fotoPath || (firstAtt && firstAtt.type === "image" ? firstAtt.filePath : "");
-  const legacyFotoUrl = journalData.fotoUrl || (firstAtt && firstAtt.type === "image" ? (firstAtt.fileUrl || firstAtt.fotoUrl || "") : "");
+  const legacyFotoUrl = journalData.fotoUrl || (firstAtt && firstAtt.type === "image" ? (firstAtt.fotoUrl || firstAtt.fileUrl || "") : "");
   const legacyFilePath = journalData.filePath || (firstAtt && firstAtt.type !== "image" ? firstAtt.filePath : "");
   const legacyFileName = journalData.fileName || (firstAtt ? firstAtt.fileName : "");
   const legacyFileUrl = journalData.fileUrl || (firstAtt ? (firstAtt.fileUrl || firstAtt.fotoUrl || "") : "");

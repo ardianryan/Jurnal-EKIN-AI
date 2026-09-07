@@ -771,8 +771,8 @@ export default function HomeSection({
                   const atts = Array.isArray(j.attachments) && j.attachments.length > 0
                     ? j.attachments
                     : (j.fotoUrl || j.fileName ? [{ type: j.evidenceType || (j.fotoUrl ? "image" : "document"), fotoUrl: j.fotoUrl, fileUrl: j.fileUrl || j.fotoUrl, fileName: j.fileName }] : []);
-                  const photoItem = atts.find(a => a.type === "image" && (a.fotoUrl || a.fileUrl)) || (j.fotoUrl ? { fotoUrl: j.fotoUrl } : null);
-                  const docItem = atts.find(a => a.type !== "image" && (a.fileUrl || a.fileName)) || ((j.fileUrl || j.fileName) && !photoItem ? { fileUrl: j.fileUrl, fileName: j.fileName } : null);
+                  const photoItem = atts.find(a => (a.type === "image" || a.fotoUrl || (a.fileName && /\.(jpe?g|png|gif|webp)$/i.test(a.fileName))) && (a.fotoUrl || a.fileUrl)) || (j.fotoUrl ? { fotoUrl: j.fotoUrl, fileUrl: j.fotoUrl } : null) || (j.evidenceType === "image" && j.fileUrl ? { fotoUrl: j.fileUrl, fileUrl: j.fileUrl } : null);
+                  const docItem = atts.find(a => a.type !== "image" && !/\.(jpe?g|png|gif|webp)$/i.test(a.fileName || "") && (a.fileUrl || a.fileName)) || ((j.fileUrl || j.fileName) && !photoItem ? { fileUrl: j.fileUrl, fileName: j.fileName } : null);
                   const isRealDrive = Boolean(j.linkUrl && typeof j.linkUrl === "string" && !j.linkUrl.includes("/uploads/") && (j.linkUrl.startsWith("http://") || j.linkUrl.startsWith("https://")));
 
                   return (

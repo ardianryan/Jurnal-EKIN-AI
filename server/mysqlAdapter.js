@@ -390,9 +390,12 @@ export async function loadStoreFromMysql() {
           storedName: r.stored_name,
           fileSize: r.file_size,
           originalSize: r.original_size,
-          fotoUrl: r.foto_url,
+          fotoUrl: r.foto_url || (r.evidence_type === "image" ? r.file_url : "") || (r.file_url && /\.(jpe?g|png|gif|webp)$/i.test(r.file_url) ? r.file_url : ""),
           fileUrl: r.file_url,
-          attachments: atts,
+          attachments: (Array.isArray(atts) ? atts : []).map(a => ({
+            ...a,
+            fotoUrl: a.fotoUrl || (a.type === "image" || (a.fileName && /\.(jpe?g|png|gif|webp)$/i.test(a.fileName)) ? (a.fileUrl || "") : "")
+          })),
           createdAt: r.created_at,
           updatedAt: r.updated_at
         };
