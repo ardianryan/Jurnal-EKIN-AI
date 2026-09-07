@@ -39,10 +39,15 @@ services:
       - R2_REGION=${R2_REGION:-auto}
       - R2_USE_PATH_STYLE_ENDPOINT=${R2_USE_PATH_STYLE_ENDPOINT:-true}
 
-      # Telegram Bot & AI Gemini Server-side (Opsional)
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      # AI Configuration (Default: Google Gemini)
+      - AI_PROVIDER=${AI_PROVIDER:-gemini}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.5-flash-lite}
+
+      # OpenAI Compatible / 9router Server-side (Opsional)
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.9router.com/v1}
+      - OPENAI_MODEL=${OPENAI_MODEL:-openai/gpt-4o-mini}
 
       # Domain Publik / Canonical App URL (Mencegah mismatch redirect URI Zitadel)
       - APP_URL=${APP_URL:-https://akin.sman1gedeg.sch.id}
