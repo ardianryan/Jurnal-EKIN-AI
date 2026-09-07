@@ -458,7 +458,7 @@ const server = http.createServer(async (req, res) => {
     if (errorParam) {
       console.error("❌ [SSO Callback Error dari Zitadel]:", errorParam, errorDesc);
       res.statusCode = 302;
-      res.setHeader("Location", `/#/login?error=${encodeURIComponent("Gagal dari Zitadel: " + (errorDesc || errorParam))}`);
+      res.setHeader("Location", `/#/login?error=${encodeURIComponent("Gagal dari Penyedia SSO: " + (errorDesc || errorParam))}`);
       res.end();
       return;
     }

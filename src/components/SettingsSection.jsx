@@ -196,7 +196,7 @@ export default function SettingsSection({
       });
       setNotification({
         type: "success",
-        text: "Pengaturan SSO Zitadel dan Kebijakan Registrasi berhasil diperbarui!"
+        text: "Pengaturan SSO dan Kebijakan Registrasi berhasil diperbarui!"
       });
     } catch (err) {
       setNotification({
@@ -565,7 +565,7 @@ export default function SettingsSection({
               style={{ fontWeight: "600" }}
             >
               <ShieldCheck size={14} />
-              <span>SSO Zitadel &amp; Registrasi</span>
+              <span>SSO &amp; Registrasi</span>
             </button>
 
             <button
@@ -1071,7 +1071,7 @@ export default function SettingsSection({
                       </div>
                       <div>
                         <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: "700", color: "var(--text-primary)" }}>
-                          Integrasi OIDC SSO Zitadel
+                          Integrasi OIDC Single Sign-On (SSO)
                         </h3>
                         <p style={{ margin: "2px 0 0", fontSize: "0.8rem", color: "var(--text-muted)" }}>
                           Izinkan login Single Sign-On khusus GTK (Guru &amp; Tenaga Kependidikan) ber-NIP resmi.
@@ -1112,7 +1112,7 @@ export default function SettingsSection({
 
                     <div className="form-group" style={{ margin: 0 }}>
                       <label className="form-label" style={{ fontWeight: "700" }}>
-                        Issuer Zitadel (URL Domain OIDC)
+                        Issuer SSO (URL Domain OIDC)
                       </label>
                       <input
                         type="text"
@@ -1122,7 +1122,7 @@ export default function SettingsSection({
                         placeholder="Contoh: https://auth.instansi.go.id"
                       />
                       <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
-                        Domain authority penyedia OIDC Zitadel instansi.
+                        Domain authority penyedia OIDC SSO instansi.
                       </span>
                     </div>
 
@@ -1139,14 +1139,14 @@ export default function SettingsSection({
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", fontWeight: "700", fontSize: "0.88rem", color: "var(--text-primary)" }}>
                           <Link2 size={15} style={{ color: "var(--accent-primary)" }} />
-                          <span>Endpoint SSO Zitadel Resmi (Otomatis Sesuai Domain Ini)</span>
+                          <span>Endpoint SSO Resmi (Otomatis Sesuai Domain Ini)</span>
                         </div>
                         <span className="badge badge-secondary" style={{ fontSize: "0.68rem" }}>
                           Auto Generated
                         </span>
                       </div>
                       <p style={{ margin: 0, fontSize: "0.76rem", color: "var(--text-secondary)", lineHeight: 1.4 }}>
-                        Daftarkan URL di bawah ini pada halaman konfigurasi aplikasi di <strong>Zitadel Console</strong>:
+                        Daftarkan URL di bawah ini pada halaman konfigurasi aplikasi di <strong>Portal Konsol SSO</strong>:
                       </p>
 
                       {/* 1. Redirect URI / Callback */}
@@ -1220,9 +1220,9 @@ export default function SettingsSection({
                       flexDirection: "column",
                       gap: "0.3rem"
                     }}>
-                      <div style={{ fontWeight: "700", color: "var(--text-primary)" }}>Aturan Keamanan Metadata Zitadel:</div>
+                      <div style={{ fontWeight: "700", color: "var(--text-primary)" }}>Aturan Keamanan Metadata SSO:</div>
                       <div>&bull; Hanya pengguna ber-role <strong>guru</strong> atau <strong>tendik</strong> yang diizinkan masuk.</div>
-                      <div>&bull; Wajib memiliki <strong>NIP ASN tepat 18 digit angka</strong>. Fallback NIK 16 digit akan otomatis ditolak dengan pesan: <em>"Anda tidak memiliki akses ke Website ini"</em>.</div>
+                      <div>&bull; Wajib memiliki <strong>NIP Pegawai terdaftar (minimal 8 digit)</strong>. Akun tanpa metadata peran Guru/Tendik atau tanpa NIP akan otomatis ditolak.</div>
                     </div>
                   </div>
                 </div>

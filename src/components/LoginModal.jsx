@@ -268,92 +268,10 @@ export default function LoginModal({
 
           {/* TAB LOGIN */}
           {activeTab === "login" && (
-            <form onSubmit={handleLogin}>
-              <div className="form-group" style={{ marginBottom: "0.75rem" }}>
-                <label className="form-label" style={{ fontWeight: "600", fontSize: "0.82rem" }}>
-                  Username
-                </label>
-                <div style={{ position: "relative" }}>
-                  <User size={15} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
-                  <input
-                    type="text"
-                    className="input-field"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Username Anda..."
-                    style={{ paddingLeft: "2rem", fontSize: "0.85rem" }}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: "1.25rem" }}>
-                <label className="form-label" style={{ fontWeight: "600", fontSize: "0.82rem" }}>
-                  Password
-                </label>
-                <div style={{ position: "relative" }}>
-                  <Key size={15} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    className="input-field"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Password akun..."
-                    style={{ paddingLeft: "2rem", paddingRight: "2.4rem", fontSize: "0.85rem" }}
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    style={{
-                      position: "absolute",
-                      right: "8px",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      color: "var(--text-muted)",
-                      padding: "4px"
-                    }}
-                  >
-                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="group w-full rounded-full px-5 py-2.5 text-xs font-bold text-white transition-all duration-300 active:scale-[0.98] disabled:opacity-70 disabled:cursor-wait flex items-center justify-between shadow-md"
-                style={{
-                  background: "linear-gradient(135deg, #1f3d2e 0%, #34634b 100%)"
-                }}
-              >
-                <span className="pl-1">
-                  {isLoading ? "Memverifikasi..." : "Masuk ke Akun"}
-                </span>
-                <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
-                  <LogIn size={13} className="text-white" />
-                </div>
-              </button>
-
-              {/* SSO Zitadel Button Option */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              {/* SSO OIDC Button Option - DIPOSISIKAN DI ATAS */}
               {ssoConfig?.enabled && (
-                <div style={{ marginTop: "1rem" }}>
-                  <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    margin: "0.75rem 0",
-                    color: "var(--text-muted)",
-                    fontSize: "0.72rem"
-                  }}>
-                    <div style={{ flex: 1, height: "1px", background: "var(--border-subtle)" }} />
-                    <span>atau</span>
-                    <div style={{ flex: 1, height: "1px", background: "var(--border-subtle)" }} />
-                  </div>
-
+                <div>
                   <a
                     href="/api/auth/sso/zitadel/login"
                     style={{
@@ -361,26 +279,112 @@ export default function LoginModal({
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
-                      padding: "0.55rem 1rem",
+                      padding: "0.6rem 1rem",
                       borderRadius: "9999px",
-                      border: "1px solid var(--border-strong, #cbd5e1)",
+                      border: "1.5px solid var(--accent-primary, #244937)",
                       background: "var(--bg-surface)",
                       color: "var(--text-primary)",
-                      fontSize: "0.82rem",
+                      fontSize: "0.85rem",
                       fontWeight: "700",
                       textDecoration: "none",
-                      boxSizing: "border-box"
+                      boxSizing: "border-box",
+                      boxShadow: "0 2px 4px rgba(36, 73, 55, 0.08)",
+                      transition: "all 0.15s ease"
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                      <ShieldCheck size={16} style={{ color: "var(--accent-primary)" }} />
+                      <ShieldCheck size={17} style={{ color: "var(--accent-primary)" }} />
                       <span>{ssoConfig.buttonText || "Masuk dengan SSO"}</span>
                     </div>
-                    <LogIn size={13} style={{ color: "var(--text-muted)" }} />
+                    <LogIn size={14} style={{ color: "var(--accent-primary)" }} />
                   </a>
+
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    margin: "0.85rem 0 0.25rem",
+                    color: "var(--text-muted)",
+                    fontSize: "0.72rem"
+                  }}>
+                    <div style={{ flex: 1, height: "1px", background: "var(--border-subtle)" }} />
+                    <span>atau login akun manual</span>
+                    <div style={{ flex: 1, height: "1px", background: "var(--border-subtle)" }} />
+                  </div>
                 </div>
               )}
-            </form>
+
+              <form onSubmit={handleLogin}>
+                <div className="form-group" style={{ marginBottom: "0.75rem" }}>
+                  <label className="form-label" style={{ fontWeight: "600", fontSize: "0.82rem" }}>
+                    Username
+                  </label>
+                  <div style={{ position: "relative" }}>
+                    <User size={15} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
+                    <input
+                      type="text"
+                      className="input-field"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Username Anda..."
+                      style={{ paddingLeft: "2rem", fontSize: "0.85rem" }}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: "1.25rem" }}>
+                  <label className="form-label" style={{ fontWeight: "600", fontSize: "0.82rem" }}>
+                    Password
+                  </label>
+                  <div style={{ position: "relative" }}>
+                    <Key size={15} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      className="input-field"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Password akun..."
+                      style={{ paddingLeft: "2rem", paddingRight: "2.4rem", fontSize: "0.85rem" }}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: "absolute",
+                        right: "8px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "var(--text-muted)",
+                        padding: "4px"
+                      }}
+                    >
+                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="group w-full rounded-full px-5 py-2.5 text-xs font-bold text-white transition-all duration-300 active:scale-[0.98] disabled:opacity-70 disabled:cursor-wait flex items-center justify-between shadow-md"
+                  style={{
+                    background: "linear-gradient(135deg, #1f3d2e 0%, #34634b 100%)"
+                  }}
+                >
+                  <span className="pl-1">
+                    {isLoading ? "Memverifikasi..." : "Masuk ke Akun"}
+                  </span>
+                  <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
+                    <LogIn size={13} className="text-white" />
+                  </div>
+                </button>
+              </form>
+            </div>
           )}
 
           {/* TAB REGISTER ATAU NOTIFIKASI REGISTRASI TERTUTUP */}

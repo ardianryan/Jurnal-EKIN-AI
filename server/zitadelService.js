@@ -123,13 +123,13 @@ export function validateZitadelMetadata(rawMetadata = {}, userClaims = {}) {
 
   if (!hasValidRole && !hasValidNip) {
     allowed = false;
-    reason = "Akses Ditolak: Akun Zitadel Anda tidak memiliki metadata profil yang dibutuhkan (Wajib memiliki metadata peran Guru/Tendik dan NIP terdaftar). Silakan hubungi Administrator untuk melengkapi metadata profil Anda di Zitadel.";
+    reason = "Akses Ditolak: Akun SSO Anda tidak memiliki metadata profil yang dibutuhkan (Wajib memiliki metadata peran Guru/Tendik dan NIP terdaftar). Silakan hubungi Administrator untuk melengkapi metadata profil Anda di portal SSO.";
   } else if (!hasValidRole) {
     allowed = false;
-    reason = "Akses Ditolak: Akun Zitadel Anda tidak memiliki metadata peran resmi sebagai Guru atau Tenaga Kependidikan (Tendik). Hanya akun dengan metadata Guru atau Tendik yang diizinkan mengakses E-Kinerja.";
+    reason = "Akses Ditolak: Akun SSO Anda tidak memiliki metadata peran resmi sebagai Guru atau Tenaga Kependidikan (Tendik). Hanya akun dengan metadata Guru atau Tendik yang diizinkan mengakses E-Kinerja.";
   } else if (!hasValidNip) {
     allowed = false;
-    reason = "Akses Ditolak: Akun Zitadel Anda belum memiliki NIP (Nomor Induk Pegawai) terdaftar. Hubungi Administrator untuk melengkapi metadata NIP Anda di Zitadel.";
+    reason = "Akses Ditolak: Akun SSO Anda belum memiliki NIP (Nomor Induk Pegawai) terdaftar. Hubungi Administrator untuk melengkapi metadata NIP Anda di portal SSO.";
   }
 
   // Ekstrak NIK jika ada
@@ -155,7 +155,7 @@ export function validateZitadelMetadata(rawMetadata = {}, userClaims = {}) {
  */
 export function buildZitadelAuthorizeUrl(config, redirectUri) {
   if (!config.issuer || !config.clientId) {
-    throw new Error("Konfigurasi Zitadel (Issuer atau Client ID) belum diatur di server.");
+    throw new Error("Konfigurasi SSO (Issuer atau Client ID) belum diatur di server.");
   }
 
   // Normalisasi issuer agar selalu memiliki protokol https://
@@ -216,7 +216,7 @@ export async function exchangeZitadelCode(code, state, config, redirectUri) {
   if (!tokenRes.ok) {
     const errText = await tokenRes.text();
     console.error(`❌ [Zitadel Token Error] HTTP ${tokenRes.status} ${tokenRes.statusText}:`, errText);
-    throw new Error(`Gagal otentikasi token Zitadel: ${tokenRes.statusText} (${errText})`);
+    throw new Error(`Gagal otentikasi token SSO: ${tokenRes.statusText} (${errText})`);
   }
 
   const tokenData = await tokenRes.json();
@@ -235,7 +235,7 @@ export async function exchangeZitadelCode(code, state, config, redirectUri) {
   if (!userRes.ok) {
     const userErrText = await userRes.text();
     console.error(`❌ [Zitadel UserInfo Error] HTTP ${userRes.status} ${userRes.statusText}:`, userErrText);
-    throw new Error(`Gagal mengambil UserInfo dari Zitadel: ${userRes.statusText}`);
+    throw new Error(`Gagal mengambil profil akun dari SSO: ${userRes.statusText}`);
   }
 
   const userInfo = await userRes.json();

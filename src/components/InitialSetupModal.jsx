@@ -144,7 +144,7 @@ export default function InitialSetupModal({
             }}>
               <ShieldCheck size={16} className="text-emerald-600" style={{ flexShrink: 0 }} />
               <div>
-                Akun terverifikasi via <strong>SSO Zitadel ({currentUser.ssoRole || "GTK"})</strong>. Silakan koreksi penulisan nama jika terdapat kekeliruan gelar, serta tentukan Pangkat, Jabatan, dan Satker bertugas.
+                Akun terverifikasi via <strong>SSO ({currentUser.ssoRole || "GTK"})</strong>. Silakan koreksi penulisan nama jika terdapat kekeliruan gelar, serta tentukan Pangkat, Jabatan, dan Satker bertugas.
               </div>
             </div>
           )}

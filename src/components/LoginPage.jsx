@@ -460,7 +460,7 @@ export default function LoginPage({
                       >
                         <div style={{ display: "flex", alignItems: "center", gap: "0.65rem" }}>
                           <ShieldCheck size={19} style={{ color: "#244937" }} />
-                          <span style={{ color: "#244937" }}>{ssoConfig.buttonText || "Masuk dengan SMAGE ID"}</span>
+                          <span style={{ color: "#244937" }}>{ssoConfig.buttonText || "Masuk dengan SSO"}</span>
                         </div>
                         <div style={{
                           width: "30px",
