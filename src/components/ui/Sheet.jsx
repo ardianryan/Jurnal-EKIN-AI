@@ -21,6 +21,8 @@ export default function Sheet({
 }) {
   const sheetRef = useRef(null);
   const previouslyFocusedElement = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   // Handle Escape key and body scroll lock
   useEffect(() => {
@@ -41,25 +43,26 @@ export default function Sheet({
     const handleKeyDown = (e) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose();
+        if (onCloseRef.current) onCloseRef.current();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
 
-    // Focus container on open for screen readers
+    // Focus initial element ONLY ONCE when opened, and never steal focus if user is already typing inside
     const timer = setTimeout(() => {
-      if (sheetRef.current) {
-        const firstFocusable = sheetRef.current.querySelector(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      if (sheetRef.current && !sheetRef.current.contains(document.activeElement)) {
+        // Cari input atau textarea pertama di form/body, jangan fokus ke tombol silang header!
+        const firstInput = sheetRef.current.querySelector(
+          '.sheet-body input:not([type="hidden"]):not([disabled]), .sheet-body textarea:not([disabled]), .sheet-body select:not([disabled])'
         );
-        if (firstFocusable) {
-          firstFocusable.focus();
+        if (firstInput) {
+          firstInput.focus();
         } else {
           sheetRef.current.focus();
         }
       }
-    }, 100);
+    }, 60);
 
     return () => {
       document.body.style.overflow = originalOverflow;
@@ -71,7 +74,7 @@ export default function Sheet({
         previouslyFocusedElement.current.focus();
       }
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -89,7 +92,7 @@ export default function Sheet({
     <div 
       className="sheet-backdrop no-print" 
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget && onCloseRef.current) onCloseRef.current();
       }}
       role="dialog"
       aria-modal="true"
@@ -117,7 +120,7 @@ export default function Sheet({
               <button
                 type="button"
                 className="sheet-close-btn"
-                onClick={onClose}
+                onClick={() => onCloseRef.current && onCloseRef.current()}
                 aria-label="Tutup panel dialog"
                 title="Tutup (Esc)"
               >

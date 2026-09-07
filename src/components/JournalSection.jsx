@@ -274,6 +274,11 @@ export default function JournalSection({
     setIsPolished(false);
   };
 
+  const handleCloseForm = () => {
+    resetForm();
+    setIsFormOpen(false);
+  };
+
   const handleStartNewJournal = () => {
     resetForm();
     setIsFormOpen(true);
@@ -579,10 +584,7 @@ export default function JournalSection({
       {/* Sheet Form Input Catatan Kasar & AI Polisher (Slide dari kanan di desktop, bawah di mobile) */}
       <Sheet
         isOpen={isFormOpen}
-        onClose={() => {
-          resetForm();
-          setIsFormOpen(false);
-        }}
+        onClose={handleCloseForm}
         title={editingId ? "Edit Catatan Aktivitas Kerja" : "Tulis Catatan Kerja & Poles AI"}
         description={editingId ? "Perbarui uraian kegiatan, waktu, hasil output, atau bukti lampiran" : "Ketik catatan santai apa adanya, poles dengan AI menjadi bahasa formal kedinasan"}
         size="lg"
