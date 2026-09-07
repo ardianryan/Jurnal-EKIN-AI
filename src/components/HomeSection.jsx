@@ -684,10 +684,25 @@ export default function HomeSection({
         borderRadius: "var(--radius-md, 12px)",
         padding: "1.5rem 1.75rem"
       }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
-          <h3 style={{ fontSize: "1.05rem", fontWeight: "700", margin: 0, color: "var(--text-primary)" }}>
-            🕒 Aktivitas Jurnal Terbaru
-          </h3>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+            <h3 style={{ fontSize: "1.05rem", fontWeight: "700", margin: 0, color: "var(--text-primary)" }}>
+              🕒 Aktivitas Jurnal Terbaru
+            </h3>
+            {recentJournals.length > 0 && (
+              <span style={{
+                fontSize: "0.72rem",
+                background: "#dbeafe",
+                color: "#1d4ed8",
+                padding: "0.2rem 0.6rem",
+                borderRadius: "12px",
+                fontWeight: "700",
+                letterSpacing: "0.02em"
+              }}>
+                5 Terakhir: Terlama → Terbaru
+              </span>
+            )}
+          </div>
           <button
             onClick={() => onNavigate("jurnal")}
             style={{
@@ -724,11 +739,20 @@ export default function HomeSection({
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                   <div style={{
-                    width: "8px",
-                    height: "8px",
+                    width: "22px",
+                    height: "22px",
                     borderRadius: "50%",
-                    background: "#2563eb"
-                  }} />
+                    background: "#2563eb",
+                    color: "#ffffff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "0.75rem",
+                    fontWeight: "700",
+                    flexShrink: 0
+                  }}>
+                    {i + 1}
+                  </div>
                   <div>
                     <div style={{ fontWeight: "600", fontSize: "0.88rem", color: "var(--text-primary)" }}>
                       {j.aktivitas}

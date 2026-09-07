@@ -14,6 +14,9 @@ export async function polishJournalNode({
     throw new Error("Tuliskan catatan aktivitas kasaran terlebih dahulu!");
   }
 
+  // 0. Pra-proses input dengan kamus singkatan & istilah offline ASN
+  const normalizedText = normalizeAbbreviations(rawText);
+
   // Jika pemanggil meminta eksplisit mode offline (tanpa memanggil Google API)
   if (apiKey === "offline") {
     return polishJournalOfflineNode(rawText);
@@ -35,15 +38,21 @@ Informasi Pegawai:
 - Jabatan: ${jabatan || "Pegawai ASN"}
 - Unit Kerja: ${unitKerja || "Instansi Pemerintah"}
 
-Catatan Kasaran Pegawai:
+Catatan Kasaran Pegawai (Input Asli):
 "${rawText}"
 
-Pedoman Substansi & Relevansi Tugas:
-1. Pertahankan substansi dan konteks pekerjaan riil yang ditulis pegawai! JANGAN mengubah jenis kegiatan yang tidak relevan.
-2. Contoh: Jika pegawai menulis tentang "arsip", "ijazah alumni", "berkas", "lemari dokumen", itu adalah TUGAS KEARSIPAN & TATA USAHA (gunakan: "Melakukan penataan, klasifikasi, serta penyimpanan berkas arsip..."). DILARANG KERAS mengubahnya menjadi kegiatan pembelajaran/mengajar murid hanya karena ada kata "tahun ajaran" atau "alumni"!
-3. Jika pegawai menulis tentang persuratan ("surat masuk", "disposisi", "registrasi surat"), itu adalah TUGAS TATA NASKAH DINAS & PERSURATAN (gunakan: "Melaksanakan pengelolaan surat dinas, pencatatan buku agenda, serta pendistribusian lembar disposisi..."). Perhatikan: jika surat masuk tersebut perihalnya tentang bimtek/sosialisasi/kurikulum, tugas pegawai adalah MENGELOLA / MEREGISTRASI SURATNYA, BUKAN mengikuti sosialisasi/bimtek!
-4. Jika pegawai menulis tentang "rekap berkas usul kenaikan pangkat", itu adalah TUGAS ADMINISTRASI KEPEGAWAIAN.
-5. STANDAR TATA BAHASA & SINGKATAN RESMI: DILARANG menggunakan singkatan tidak baku seperti "ttg", "no", "dgn", "yg", "utk", "dlm". Wajib ubah menjadi kata formal baku (misalnya: "ttg" menjadi "tentang", "no" menjadi "Nomor", "bimtek" menjadi "Bimbingan Teknis (Bimtek)", "dinas pendidikan" menjadi "Dinas Pendidikan").
+Hasil Terjemahan Singkatan & Istilah Kasaran (Kamus Baku ASN):
+"${normalizedText}"
+
+Pedoman Substansi & Pemahaman Bahasa Kasaran:
+1. PENTING: Gunakan "Hasil Terjemahan Singkatan & Istilah Kasaran" di atas sebagai rujukan utama untuk mengartikan singkatan informal, bahasa santai, maupun istilah teknis kedinasan (misal: "benerin wifi/mikrotik" -> perbaikan dan konfigurasi koneksi jaringan internet, "ngurus spj" -> pertanggungjawaban keuangan, "antar surat" -> tata naskah dinas/ekspedisi surat, "bikin soal/kaldik/kosp" -> administrasi kurikulum/pembelajaran).
+2. Pertahankan substansi dan konteks pekerjaan riil yang ditulis pegawai! JANGAN mengubah jenis kegiatan yang tidak relevan:
+   - Arsip/berkas/ijazah alumni/lemari dokumen -> TUGAS KEARSIPAN & TATA USAHA (dilarang diubah jadi kegiatan mengajar murid!).
+   - Surat masuk/keluar/disposisi/agenda -> TUGAS TATA PERSURATAN & NASKAH DINAS.
+   - Kenaikan pangkat/skp/siasn/kgb/cuti -> TUGAS KEPEGAWAIAN.
+   - Jaringan/wifi/mikrotik/lab/cbt/komputer/dapodik/website -> TUGAS TEKNOLOGI INFORMASI & KOMUNIKASI.
+3. STANDAR TATA BAHASA & SINGKATAN RESMI: DILARANG menggunakan singkatan tidak baku seperti "ttg", "no", "dgn", "yg", "utk", "dlm", "trs", "tdi". Wajib ubah menjadi kata formal baku dan kalimat yang mengalir profesional.
+4. Awali kalimat dengan kata kerja aktif kedinasan (Melaksanakan, Melakukan, Menyusun, Mengoordinasikan, Memverifikasi, Memelihara, dsb).
 
 Instruksi Output:
 Kembalikan HANYA format JSON valid tanpa format markdown lain:
@@ -90,8 +99,9 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
             if (content) {
               const parsed = JSON.parse(content);
               console.log(`🚀 [Gemini API] Sukses memoles jurnal dengan model: ${model}`);
+              const cleanedAktivitas = cleanDuplicatePhrases(normalizeAbbreviations(parsed.aktivitas || normalizedText));
               return {
-                aktivitas: cleanDuplicatePhrases(parsed.aktivitas || rawText),
+                aktivitas: cleanedAktivitas,
                 outputJumlah: parsed.outputJumlah || "1 Dokumen / Kegiatan",
                 catatan: parsed.catatan || "Terselesaikan dengan tertib sesuai standar operasional prosedur.",
                 source: `gemini-ai (${model})`
@@ -437,6 +447,48 @@ export function normalizeAbbreviations(text) {
   s = s.replace(/\b(minta|mintak)\b/gi, "mengajukan permohonan");
   s = s.replace(/\bketemu\b/gi, "berkoordinasi dengan");
   s = s.replace(/\b(ngobrol|ngomongin)\b/gi, "berdiskusi mengenai");
+  s = s.replace(/\b(trs|trus)\b/gi, "kemudian");
+  s = s.replace(/\b(benerin|benahi|beneri)\b/gi, "memperbaiki");
+  s = s.replace(/\b(ngurus|urus)\b/gi, "mengurus");
+  s = s.replace(/\b(ngantar|nganter|ngantarkan)\b/gi, "mengantarkan");
+  s = s.replace(/\b(antar surat|kirim surat)\b/gi, "mendistribusikan surat dinas");
+  s = s.replace(/\b(nyiapin|siapin)\b/gi, "mempersiapkan");
+  s = s.replace(/\b(nyusun|susun)\b/gi, "menyusun");
+  s = s.replace(/\b(cek|ngecek)\b/gi, "memeriksa");
+  s = s.replace(/\b(bikin|buat)\b/gi, "menyusun dan membuat");
+  s = s.replace(/\b(masukin|input)\b/gi, "menginput");
+  s = s.replace(/\b(nyari|cari)\b/gi, "mengumpulkan");
+  s = s.replace(/\b(nerima|terima)\b/gi, "menerima");
+  s = s.replace(/\b(ngetik|ketik)\b/gi, "mengetik dan menyusun");
+  s = s.replace(/\b(bagiin|bagi)\b/gi, "mendistribusikan");
+  s = s.replace(/\b(ikutan|ikut)\b/gi, "mengikuti");
+  s = s.replace(/\b(rapat|rembukan)\b/gi, "rapat koordinasi");
+  s = s.replace(/\bsurat msk\b/gi, "surat masuk");
+  s = s.replace(/\bsurat klr\b/gi, "surat keluar");
+  s = s.replace(/\bdispo\b/gi, "lembar disposisi");
+  s = s.replace(/\bagendain\b/gi, "mencatat buku agenda");
+  s = s.replace(/\bfotoin\b/gi, "mendokumentasikan");
+  s = s.replace(/\b(scan|nyecan)\b/gi, "memindai (scanning) dokumen");
+  s = s.replace(/\b(fotocopy|fotokopi|kopi)\b/gi, "menggandakan dokumen");
+  s = s.replace(/\b(print|ngeprint)\b/gi, "mencetak dokumen");
+  s = s.replace(/\bttd\b/gi, "penandatanganan dokumen");
+  s = s.replace(/\bparaf\b/gi, "paraf persetujuan");
+  s = s.replace(/\b(kepsek|kasek)\b/gi, "Kepala Sekolah");
+  s = s.replace(/\bkadis\b/gi, "Kepala Dinas");
+  s = s.replace(/\bsekdis\b/gi, "Sekretaris Dinas");
+  s = s.replace(/\bkabid\b/gi, "Kepala Bidang");
+  s = s.replace(/\bkasi\b/gi, "Kepala Seksi");
+  s = s.replace(/\bkasubag\b/gi, "Kepala Sub Bagian");
+  s = s.replace(/\btu\b/gi, "Tata Usaha (TU)");
+  s = s.replace(/\bwalmur\b/gi, "wali murid");
+  s = s.replace(/\bortu\b/gi, "orang tua siswa");
+  s = s.replace(/\blab\b/gi, "laboratorium");
+  s = s.replace(/\b(komp|pc)\b/gi, "perangkat komputer");
+  s = s.replace(/\blaptop\b/gi, "perangkat laptop");
+  s = s.replace(/\binfocus\b/gi, "proyektor LCD");
+  s = s.replace(/\b(beresin|bereskan)\b/gi, "merapikan dan menata");
+  s = s.replace(/\b(nyelesain|selesaiin)\b/gi, "menyelesaikan");
+  s = s.replace(/\bbantu\b/gi, "membantu pelaksanaan");
 
   // Rapikan spasi berlebih
   s = s.replace(/\s+/g, " ").trim();
