@@ -3,7 +3,7 @@ import {
   BookOpen, Plus, PlusCircle, Camera, Trash2, Sparkles, 
   Calendar, Clock, CheckCircle2, FileText, ExternalLink, 
   X, ZoomIn, Paperclip, FileSpreadsheet, Link2, Briefcase, Edit3,
-  RefreshCw
+  RefreshCw, ChevronDown
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { processEvidenceFile } from "../utils/fileUtils";
@@ -831,47 +831,91 @@ export default function JournalSection({
 
                 {/* Opsi ganti profesi contoh jika multi-tasking */}
                 {casualData.allJabatanList && casualData.allJabatanList.length > 0 && (
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
-                    <label htmlFor="select-jabatan-contoh" style={{ fontSize: "0.7rem", color: "var(--text-muted)", margin: 0 }}>
-                      Lihat profesi lain:
-                    </label>
-                    <select 
-                      id="select-jabatan-contoh"
-                      className="form-select form-select-sm"
-                      value={selectedJabatanOverride || casualData.matchedJabatan?.nama || ""}
-                      onChange={(e) => setSelectedJabatanOverride(e.target.value)}
-                      style={{
-                        fontSize: "0.74rem",
-                        padding: "0 1.8rem 0 0.55rem",
-                        height: "26px",
-                        borderRadius: "6px",
-                        border: "1px solid var(--border-subtle)",
-                        background: "var(--bg-primary)",
-                        color: "var(--text-secondary)"
-                      }}
-                    >
-                      {casualData.allJabatanList.map((j) => (
-                        <option key={j.id} value={j.nama}>
-                          {j.nama}
-                        </option>
-                      ))}
-                    </select>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "0.45rem", flexWrap: "wrap" }}>
+                    <div style={{
+                      position: "relative",
+                      display: "inline-flex",
+                      alignItems: "center"
+                    }}>
+                      <label 
+                        htmlFor="select-jabatan-contoh" 
+                        style={{ 
+                          fontSize: "0.72rem", 
+                          fontWeight: "600",
+                          color: "var(--text-muted)", 
+                          margin: 0,
+                          marginRight: "6px",
+                          whiteSpace: "nowrap"
+                        }}
+                      >
+                        Lihat profesi lain:
+                      </label>
+                      <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+                        <select 
+                          id="select-jabatan-contoh"
+                          value={selectedJabatanOverride || casualData.matchedJabatan?.nama || ""}
+                          onChange={(e) => setSelectedJabatanOverride(e.target.value)}
+                          style={{
+                            appearance: "none",
+                            WebkitAppearance: "none",
+                            MozAppearance: "none",
+                            fontSize: "0.74rem",
+                            fontWeight: "600",
+                            padding: "0.22rem 1.6rem 0.22rem 0.65rem",
+                            borderRadius: "7px",
+                            border: selectedJabatanOverride ? "1.5px solid var(--accent-primary, #3b82f6)" : "1px solid var(--border-strong, #cbd5e1)",
+                            background: selectedJabatanOverride ? "rgba(59, 130, 246, 0.06)" : "var(--bg-secondary)",
+                            color: selectedJabatanOverride ? "var(--accent-primary, #2563eb)" : "var(--text-primary)",
+                            cursor: "pointer",
+                            outline: "none",
+                            maxWidth: "230px",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                            transition: "all 0.15s ease"
+                          }}
+                        >
+                          {casualData.allJabatanList.map((j) => (
+                            <option key={j.id} value={j.nama} style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>
+                              {j.nama}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown 
+                          size={12} 
+                          style={{ 
+                            position: "absolute", 
+                            right: "7px", 
+                            color: selectedJabatanOverride ? "var(--accent-primary, #3b82f6)" : "var(--text-muted)", 
+                            pointerEvents: "none" 
+                          }} 
+                        />
+                      </div>
+                    </div>
+
                     {selectedJabatanOverride && (
                       <button
                         type="button"
                         onClick={() => setSelectedJabatanOverride("")}
                         style={{
-                          background: "none",
-                          border: "none",
-                          fontSize: "0.7rem",
-                          color: "var(--accent-primary, #3b82f6)",
+                          background: "#fee2e2",
+                          border: "1px solid #fca5a5",
+                          borderRadius: "6px",
+                          fontSize: "0.68rem",
+                          fontWeight: "700",
+                          color: "#b91c1c",
                           cursor: "pointer",
-                          textDecoration: "underline",
-                          padding: "0 2px"
+                          padding: "2px 7px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "3px",
+                          transition: "all 0.15s ease"
                         }}
-                        title="Kembali ke jabatan saya"
+                        title="Kembali ke profesi / jabatan saya"
                       >
-                        Reset
+                        <X size={10} />
+                        <span>Reset</span>
                       </button>
                     )}
                   </div>
