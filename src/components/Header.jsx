@@ -82,27 +82,15 @@ export default function Header({
           <Menu size={20} />
         </button>
 
-        <div className="topbar-branding-mobile" style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <div className="topbar-branding-mobile">
           {schoolLogo ? (
-            <div style={{
-              width: "26px",
-              height: "26px",
-              borderRadius: "6px",
-              overflow: "hidden",
-              background: "var(--bg-secondary)",
-              border: "1px solid var(--border-subtle)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "2px",
-              flexShrink: 0
-            }}>
-              <img src={schoolLogo} alt="Logo" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+            <div className="topbar-logo-img-wrap">
+              <img src={schoolLogo} alt="Logo" />
             </div>
           ) : null}
-          <div>
+          <div className="topbar-title-wrap">
             <span className="topbar-logo-title">E-Kinerja</span>
-            <span className="topbar-logo-badge">{schoolName}</span>
+            <span className="topbar-logo-sub" title={schoolName}>{schoolName}</span>
           </div>
         </div>
       </div>
