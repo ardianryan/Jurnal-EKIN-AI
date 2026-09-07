@@ -373,8 +373,18 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      const proto = req.headers["x-forwarded-proto"] || "http";
-      const host = req.headers.host || `localhost:${PORT}`;
+      // Deteksi host dan proto yang robust (mendukung reverse proxy Nginx / Cloudflare / Portainer)
+      let proto = req.headers["x-forwarded-proto"] || "http";
+      if (proto.includes(",")) proto = proto.split(",")[0].trim();
+
+      let host = req.headers["x-forwarded-host"] || req.headers.host || `localhost:${PORT}`;
+      if (host.includes(",")) host = host.split(",")[0].trim();
+
+      // Jika diakses via domain publik tanpa port, pastikan protokol mengikuti https jika x-forwarded-ssl atau https
+      if (req.headers["x-forwarded-ssl"] === "on" || req.headers["front-end-https"] === "on") {
+        proto = "https";
+      }
+
       const redirectUri = `${proto}://${host}/api/auth/sso/zitadel/callback`;
 
       const { url } = buildZitadelAuthorizeUrl(config, redirectUri);
@@ -419,8 +429,17 @@ const server = http.createServer(async (req, res) => {
     try {
       const store = getStore();
       const config = getZitadelConfig(store.settings || {});
-      const proto = req.headers["x-forwarded-proto"] || "http";
-      const host = req.headers.host || `localhost:${PORT}`;
+      // Deteksi host dan proto yang robust (mendukung reverse proxy Nginx / Cloudflare / Portainer)
+      let proto = req.headers["x-forwarded-proto"] || "http";
+      if (proto.includes(",")) proto = proto.split(",")[0].trim();
+
+      let host = req.headers["x-forwarded-host"] || req.headers.host || `localhost:${PORT}`;
+      if (host.includes(",")) host = host.split(",")[0].trim();
+
+      if (req.headers["x-forwarded-ssl"] === "on" || req.headers["front-end-https"] === "on") {
+        proto = "https";
+      }
+
       const redirectUri = `${proto}://${host}/api/auth/sso/zitadel/callback`;
 
       const { userInfo, metadata } = await exchangeZitadelCode(code, state, config, redirectUri);

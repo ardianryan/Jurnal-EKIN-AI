@@ -397,111 +397,10 @@ export default function LoginPage({
 
               {/* TAB 1: FORM LOGIN */}
               {activeTab === "login" && (
-                <form onSubmit={handleLoginSubmit} className="auth-form">
-                  {/* Field: Username */}
-                  <div className="auth-form-group">
-                    <label className="auth-label">
-                      Username Pegawai / Admin
-                    </label>
-                    <div className="auth-input-wrapper">
-                      <div className="auth-input-icon">
-                        <User size={16} />
-                      </div>
-                      <input
-                        type="text"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        placeholder="Masukkan username Anda..."
-                        className="auth-input"
-                        autoFocus
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  {/* Field: Password */}
-                  <div className="auth-form-group">
-                    <div className="auth-label-row">
-                      <label className="auth-label">
-                        Kata Sandi
-                      </label>
-                      <span className="auth-label-sub">
-                        Min. 4 Karakter
-                      </span>
-                    </div>
-                    <div className="auth-input-wrapper">
-                      <div className="auth-input-icon">
-                        <Key size={16} />
-                      </div>
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Masukkan password Anda..."
-                        className="auth-input"
-                        style={{ paddingRight: "2.6rem" }}
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="auth-eye-btn"
-                        title={showPassword ? "Sembunyikan password" : "Lihat password"}
-                      >
-                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Remember Me Toggle */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: "0.25rem" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: "0.45rem", cursor: "pointer", fontSize: "0.78rem", color: "var(--text-secondary)" }}>
-                      <input
-                        type="checkbox"
-                        checked={rememberMe}
-                        onChange={(e) => setRememberMe(e.target.checked)}
-                        style={{ accentColor: "#34634b", width: "15px", height: "15px" }}
-                      />
-                      <span>Ingat sesi akun ini (24 jam)</span>
-                    </label>
-
-                    <button
-                      type="button"
-                      onClick={() => switchTab("register")}
-                      style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.78rem", color: "#34634b", fontWeight: "700" }}
-                    >
-                      Belum punya akun?
-                    </button>
-                  </div>
-
-                  {/* Submit Button with Island Icon Pattern */}
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="auth-cta-button"
-                  >
-                    <span>{isLoading ? "Memverifikasi Kredensial..." : "Masuk ke Sistem Kinerja"}</span>
-                    <div className="auth-button-island-icon">
-                      <ArrowRight size={15} />
-                    </div>
-                  </button>
-
-                  {/* SSO OIDC Login Option (Zitadel) */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  {/* SSO OIDC Login Option (Zitadel) - DIPOSISIKAN DI ATAS */}
                   {ssoConfig?.enabled && (
-                    <div style={{ marginTop: "0.5rem" }}>
-                      <div style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.75rem",
-                        margin: "1rem 0 0.85rem 0",
-                        color: "var(--text-muted, #94a3b8)",
-                        fontSize: "0.74rem"
-                      }}>
-                        <div style={{ flex: 1, height: "1px", background: "var(--border-subtle, #e2e8f0)" }} />
-                        <span style={{ fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>atau opsi terintegrasi</span>
-                        <div style={{ flex: 1, height: "1px", background: "var(--border-subtle, #e2e8f0)" }} />
-                      </div>
-
+                    <div>
                       <a
                         href="/api/auth/sso/zitadel/login"
                         className="auth-sso-button"
@@ -510,21 +409,22 @@ export default function LoginPage({
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "space-between",
-                          padding: "0.7rem 0.85rem 0.7rem 1.25rem",
-                          borderRadius: "8px",
+                          padding: "0.75rem 1rem",
+                          borderRadius: "10px",
                           background: "#ffffff",
-                          border: "1px solid #cbdcd2",
+                          border: "1.5px solid #244937",
                           color: "#1e293b",
-                          fontSize: "0.85rem",
+                          fontSize: "0.88rem",
                           fontWeight: "700",
                           textDecoration: "none",
                           boxSizing: "border-box",
+                          boxShadow: "0 2px 4px rgba(36, 73, 55, 0.08)",
                           transition: "all 0.15s ease"
                         }}
                       >
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-                          <ShieldCheck size={17} style={{ color: "#244937" }} />
-                          <span>{ssoConfig.buttonText || "Masuk dengan SSO"}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.65rem" }}>
+                          <ShieldCheck size={19} style={{ color: "#244937" }} />
+                          <span style={{ color: "#244937" }}>{ssoConfig.buttonText || "Masuk dengan SMAGE ID"}</span>
                         </div>
                         <div style={{
                           width: "30px",
@@ -536,12 +436,115 @@ export default function LoginPage({
                           justifyContent: "center",
                           color: "#244937"
                         }}>
-                          <ArrowRight size={14} />
+                          <ArrowRight size={15} />
                         </div>
                       </a>
+
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.75rem",
+                        margin: "1.1rem 0 0.4rem 0",
+                        color: "var(--text-muted, #94a3b8)",
+                        fontSize: "0.74rem"
+                      }}>
+                        <div style={{ flex: 1, height: "1px", background: "var(--border-subtle, #e2e8f0)" }} />
+                        <span style={{ fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>atau login akun lokal</span>
+                        <div style={{ flex: 1, height: "1px", background: "var(--border-subtle, #e2e8f0)" }} />
+                      </div>
                     </div>
                   )}
-                </form>
+
+                  <form onSubmit={handleLoginSubmit} className="auth-form">
+                    {/* Field: Username */}
+                    <div className="auth-form-group">
+                      <label className="auth-label">
+                        Username Pegawai / Admin
+                      </label>
+                      <div className="auth-input-wrapper">
+                        <div className="auth-input-icon">
+                          <User size={16} />
+                        </div>
+                        <input
+                          type="text"
+                          value={username}
+                          onChange={(e) => setUsername(e.target.value)}
+                          placeholder="Masukkan username Anda..."
+                          className="auth-input"
+                          autoFocus={!ssoConfig?.enabled}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {/* Field: Password */}
+                    <div className="auth-form-group">
+                      <div className="auth-label-row">
+                        <label className="auth-label">
+                          Kata Sandi
+                        </label>
+                        <span className="auth-label-sub">
+                          Min. 4 Karakter
+                        </span>
+                      </div>
+                      <div className="auth-input-wrapper">
+                        <div className="auth-input-icon">
+                          <Key size={16} />
+                        </div>
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="Masukkan password Anda..."
+                          className="auth-input"
+                          style={{ paddingRight: "2.6rem" }}
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="auth-eye-btn"
+                          title={showPassword ? "Sembunyikan password" : "Lihat password"}
+                        >
+                          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Remember Me Toggle */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: "0.25rem" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: "0.45rem", cursor: "pointer", fontSize: "0.78rem", color: "var(--text-secondary)" }}>
+                        <input
+                          type="checkbox"
+                          checked={rememberMe}
+                          onChange={(e) => setRememberMe(e.target.checked)}
+                          style={{ accentColor: "#34634b", width: "15px", height: "15px" }}
+                        />
+                        <span>Ingat sesi akun ini (24 jam)</span>
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => switchTab("register")}
+                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.78rem", color: "#34634b", fontWeight: "700" }}
+                      >
+                        Belum punya akun?
+                      </button>
+                    </div>
+
+                    {/* Submit Button with Island Icon Pattern */}
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="auth-cta-button"
+                    >
+                      <span>{isLoading ? "Memverifikasi Kredensial..." : "Masuk ke Sistem Kinerja"}</span>
+                      <div className="auth-button-island-icon">
+                        <ArrowRight size={15} />
+                      </div>
+                    </button>
+                  </form>
+                </div>
               )}
 
               {/* TAB 2: FORM REGISTRASI ATAU PEMBERITAHUAN REGISTRASI TERTUTUP */}

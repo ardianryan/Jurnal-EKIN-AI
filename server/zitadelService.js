@@ -106,6 +106,12 @@ export function buildZitadelAuthorizeUrl(config, redirectUri) {
     throw new Error("Konfigurasi Zitadel (Issuer atau Client ID) belum diatur di server.");
   }
 
+  // Normalisasi issuer agar selalu memiliki protokol https://
+  let cleanIssuer = (config.issuer || "").trim().replace(/\/+$/, "");
+  if (!cleanIssuer.startsWith("http://") && !cleanIssuer.startsWith("https://")) {
+    cleanIssuer = `https://${cleanIssuer}`;
+  }
+
   const state = crypto.randomBytes(24).toString("hex");
   const nonce = crypto.randomBytes(24).toString("hex");
 
@@ -115,7 +121,7 @@ export function buildZitadelAuthorizeUrl(config, redirectUri) {
     createdAt: Date.now()
   });
 
-  const authUrl = new URL(`${config.issuer}/oauth/v2/authorize`);
+  const authUrl = new URL(`${cleanIssuer}/oauth/v2/authorize`);
   authUrl.searchParams.set("client_id", config.clientId);
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("scope", config.scopes || "openid profile email urn:zitadel:iam:user:metadata");
