@@ -80,11 +80,26 @@ Aplikasi dapat langsung diakses di browser: `http://localhost:3000`.
 
 ---
 
-## 🌐 4. Panduan di Easypanel / Portainer / Coolify / CapRover
+## 🌐 4. Panduan Portainer Stack (Remote PostgreSQL VM Eksternal)
 
-- **Service Type**: App (Docker Image atau Dockerfile)
-- **Image**: `ghcr.io/ardianryan/jurnal-ekin-ai:smansage`
+Jika Anda menggunakan **Portainer**:
+1. Buka Portainer UI > **Stacks** > **+ Add stack**.
+2. Beri nama stack (misal: `ekinerja-ai`).
+3. Pilih metode **Web editor** dan salin isi file [`docker-compose.portainer.yml`](docker-compose.portainer.yml).
+4. Pada bagian **Environment variables** di Portainer, tambahkan variabel:
+   - `DB_PASSWORD`: *(isi dengan password database VM Anda)*
+   - `PORT`: `3000` *(atau port publik yang Anda kehendaki)*
+   - *(Opsional)* Variabel Cloudflare R2 / S3 jika ingin mengaktifkan storage presigned.
+5. Klik **Deploy the stack**.
+6. Aplikasi akan langsung menarik image dari GHCR, terhubung ke VM PostgreSQL, menjalankan auto-migration tabel secara otomatis, dan siap digunakan!
+
+---
+
+## 🛠️ 5. Deployment di Easypanel / Coolify / CapRover
+
+- **Service Type**: App (Docker Image: `ghcr.io/ardianryan/jurnal-ekin-ai:smansage`)
 - **Port**: `3000`
 - **Health Check Path**: `/health`
 - **Persistent Volume**: `/app/database`
 - **Environment Variables**: Masukkan variabel dari `.env.example` ke menu Environment pada panel Anda.
+

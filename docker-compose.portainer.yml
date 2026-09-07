@@ -1,0 +1,65 @@
+version: '3.8'
+
+# ==============================================================================
+# Portainer Stack Template: E-Kinerja AI (Remote PostgreSQL External VM)
+# Petunjuk:
+# 1. Salin isi file ini ke web editor Portainer (Menu Stacks -> Add Stack).
+# 2. Isi nilai kredensial rahasia pada form "Environment variables" di Portainer UI
+#    atau gunakan nilai default yang sudah di-map ke variabel di bawah ini.
+# ==============================================================================
+
+services:
+  ekinerja-app:
+    image: ${DOCKER_IMAGE:-ghcr.io/ardianryan/jurnal-ekin-ai:smansage}
+    container_name: ekinerja-ai
+    restart: always
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - TZ=Asia/Jakarta
+
+      # Koneksi Database PostgreSQL VM Eksternal (10.1.0.18)
+      - DB_TYPE=postgres
+      - DB_HOST=${DB_HOST:-10.1.0.18}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-ekinaism}
+      - DB_USER=${DB_USER:-ekinaism}
+      - DB_PASSWORD=${DB_PASSWORD}
+
+      # Cloudflare R2 / S3 Object Storage Presigned URL (Opsional)
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:-}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:-}
+      - R2_ENDPOINT=${R2_ENDPOINT:-}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME:-}
+      - R2_FOLDER_PATH=${R2_FOLDER_PATH:-ekinsmansage}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL:-}
+      - R2_REGION=${R2_REGION:-auto}
+      - R2_USE_PATH_STYLE_ENDPOINT=${R2_USE_PATH_STYLE_ENDPOINT:-true}
+
+      # Telegram Bot & AI Gemini Server-side (Opsional)
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.5-flash-lite}
+
+      # SSO Zitadel OIDC (Opsional)
+      - ZITADEL_ISSUER=${ZITADEL_ISSUER:-}
+      - ZITADEL_CLIENT_ID=${ZITADEL_CLIENT_ID:-}
+      - ZITADEL_CLIENT_SECRET=${ZITADEL_CLIENT_SECRET:-}
+      - ZITADEL_BUTTON_TEXT=${ZITADEL_BUTTON_TEXT:-Masuk dengan SSO}
+
+    volumes:
+      # Volume lokal persisten untuk cache sesi dan cadangan data internal
+      - ekinerja_data:/app/database
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  ekinerja_data:
