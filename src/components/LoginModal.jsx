@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import Sheet from "./ui/Sheet";
 import { 
   X, 
   LogIn, 
@@ -12,7 +13,7 @@ import {
   Eye, 
   EyeOff 
 } from "lucide-react";
-import { authenticate, registerAccount } from "../services/accountService";
+import { authenticate, registerAccount, getCachedSsoConfig, fetchSsoConfig } from "../services/accountService";
 
 export default function LoginModal({ 
   isOpen, 
@@ -22,6 +23,16 @@ export default function LoginModal({
   onLogout 
 }) {
   const [activeTab, setActiveTab] = useState("login"); // "login" | "register"
+  const [ssoConfig, setSsoConfig] = useState(() => getCachedSsoConfig());
+
+  // Muat status SSO
+  React.useEffect(() => {
+    if (isOpen) {
+      fetchSsoConfig().then(cfg => {
+        if (cfg) setSsoConfig(cfg);
+      });
+    }
+  }, [isOpen]);
 
   // State Login
   const [username, setUsername] = useState("");
@@ -134,72 +145,13 @@ export default function LoginModal({
   };
 
   return (
-    <div 
-      className="no-print"
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0, 0, 0, 0.7)",
-        backdropFilter: "blur(4px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 9999,
-        padding: "1rem"
-      }}
+    <Sheet
+      isOpen={isOpen}
+      onClose={onClose}
+      title={activeTab === "login" ? "Masuk / Ganti Akun" : "Daftar Akun Baru"}
+      description={activeTab === "login" ? "Gunakan akun yang telah terdaftar di sistem E-Kinerja" : "Wajib menggunakan kode undangan resmi dari Admin"}
+      size={activeTab === "register" ? "lg" : "md"}
     >
-      <div style={{
-        background: "var(--bg-primary)",
-        borderRadius: "var(--radius-lg, 12px)",
-        width: "100%",
-        maxWidth: activeTab === "register" ? "500px" : "440px",
-        boxShadow: "var(--shadow-xl)",
-        border: "1px solid var(--border-subtle)",
-        overflow: "hidden",
-        maxHeight: "92vh",
-        display: "flex",
-        flexDirection: "column"
-      }}>
-        {/* Header */}
-        <div style={{
-          padding: "1.2rem 1.5rem",
-          borderBottom: "1px solid var(--border-subtle)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          background: "var(--bg-secondary)"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <div style={{
-              width: "36px",
-              height: "36px",
-              borderRadius: "8px",
-              background: "#dbeafe",
-              color: "#1d4ed8",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center"
-            }}>
-              {activeTab === "login" ? <LogIn size={18} /> : <UserPlus size={18} />}
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: "800", color: "var(--text-primary)" }}>
-                {activeTab === "login" ? "Masuk / Ganti Akun" : "Daftar Akun Baru"}
-              </h3>
-              <p style={{ margin: "2px 0 0 0", fontSize: "0.78rem", color: "var(--text-muted)" }}>
-                {activeTab === "login" ? "Gunakan akun yang telah terdaftar di sistem" : "Wajib menggunakan kode undangan resmi dari Admin"}
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className="btn btn-secondary btn-icon btn-sm"
-            onClick={onClose}
-          >
-            <X size={16} />
-          </button>
-        </div>
 
         {/* Tab Toggle */}
         <div style={{
@@ -373,24 +325,115 @@ export default function LoginModal({
               <button
                 type="submit"
                 disabled={isLoading}
-                className="btn btn-primary"
-                style={{ width: "100%", justifyContent: "center", fontWeight: "700", padding: "0.7rem" }}
+                className="group w-full rounded-full px-5 py-2.5 text-xs font-bold text-white transition-all duration-300 active:scale-[0.98] disabled:opacity-70 disabled:cursor-wait flex items-center justify-between shadow-md"
+                style={{
+                  background: "linear-gradient(135deg, #1f3d2e 0%, #34634b 100%)"
+                }}
               >
-                <LogIn size={15} />
-                <span>{isLoading ? "Memverifikasi..." : "Masuk ke Akun"}</span>
+                <span className="pl-1">
+                  {isLoading ? "Memverifikasi..." : "Masuk ke Akun"}
+                </span>
+                <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
+                  <LogIn size={13} className="text-white" />
+                </div>
               </button>
+
+              {/* SSO Zitadel Button Option */}
+              {ssoConfig?.enabled && (
+                <div style={{ marginTop: "1rem" }}>
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    margin: "0.75rem 0",
+                    color: "var(--text-muted)",
+                    fontSize: "0.72rem"
+                  }}>
+                    <div style={{ flex: 1, height: "1px", background: "var(--border-subtle)" }} />
+                    <span>atau</span>
+                    <div style={{ flex: 1, height: "1px", background: "var(--border-subtle)" }} />
+                  </div>
+
+                  <a
+                    href="/api/auth/sso/zitadel/login"
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "0.55rem 1rem",
+                      borderRadius: "9999px",
+                      border: "1px solid var(--border-strong, #cbd5e1)",
+                      background: "var(--bg-surface)",
+                      color: "var(--text-primary)",
+                      fontSize: "0.82rem",
+                      fontWeight: "700",
+                      textDecoration: "none",
+                      boxSizing: "border-box"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <ShieldCheck size={16} style={{ color: "var(--accent-primary)" }} />
+                      <span>{ssoConfig.buttonText || "Masuk dengan SSO"}</span>
+                    </div>
+                    <LogIn size={13} style={{ color: "var(--text-muted)" }} />
+                  </a>
+                </div>
+              )}
             </form>
           )}
 
-          {/* TAB REGISTER */}
-          {activeTab === "register" && (
+          {/* TAB REGISTER ATAU NOTIFIKASI REGISTRASI TERTUTUP */}
+          {activeTab === "register" && ssoConfig?.registrationMode === "closed" ? (
+            <div style={{ padding: "0.5rem 0", display: "flex", flexDirection: "column", gap: "1rem" }}>
+              <div style={{
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                color: "#991b1b",
+                padding: "1rem",
+                borderRadius: "8px",
+                fontSize: "0.82rem",
+                lineHeight: "1.45"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontWeight: "700", marginBottom: "0.3rem" }}>
+                  <AlertCircle size={16} style={{ color: "#dc2626" }} />
+                  <span>Registrasi Mandiri Ditutup</span>
+                </div>
+                <p style={{ margin: 0 }}>
+                  {ssoConfig.closedRegistrationMessage || "Pendaftaran akun baru saat ini ditutup untuk umum. Pegawai & GTK dipersilakan melakukan pendaftaran atau pemutakhiran data melalui portal registrasi resmi instansi berikut:"}
+                </p>
+              </div>
+
+              {ssoConfig.closedRegistrationUrl ? (
+                <a
+                  href={ssoConfig.closedRegistrationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group w-full rounded-full px-5 py-2.5 text-xs font-bold text-white transition-all duration-300 active:scale-[0.98] flex items-center justify-between shadow-md"
+                  style={{
+                    background: "#1e3a8a",
+                    textDecoration: "none"
+                  }}
+                >
+                  <span className="pl-1">Menuju Portal Registrasi Resmi</span>
+                  <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center">
+                    <UserPlus size={13} className="text-white" />
+                  </div>
+                </a>
+              ) : (
+                <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", textAlign: "center" }}>
+                  Silakan hubungi Administrator Kepegawaian instansi untuk informasi pendaftaran akun.
+                </div>
+              )}
+            </div>
+          ) : activeTab === "register" && (
             <form onSubmit={handleRegister} style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               <div>
-                <label className="form-label" style={{ fontWeight: "700", fontSize: "0.82rem", color: "#1d4ed8" }}>
+                <label className="form-label" style={{ fontWeight: "700", fontSize: "0.82rem", color: "var(--accent-primary)" }}>
                   Kode Registrasi / Undangan <span style={{ color: "#dc2626" }}>*</span>
                 </label>
                 <div style={{ position: "relative" }}>
-                  <Ticket size={15} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "#2563eb" }} />
+                  <Ticket size={15} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--accent-primary)" }} />
                   <input
                     type="text"
                     className="input-field"
@@ -402,9 +445,8 @@ export default function LoginModal({
                       fontSize: "0.88rem", 
                       fontWeight: "700", 
                       textTransform: "uppercase", 
-                      background: "#eff6ff", 
-                      borderColor: "#93c5fd",
-                      letterSpacing: "0.05em"
+                      background: "rgba(52, 99, 75, 0.04)", 
+                      letterSpacing: "1px"
                     }}
                     required
                   />
@@ -551,19 +593,17 @@ export default function LoginModal({
               <button
                 type="submit"
                 disabled={isLoading}
-                className="btn btn-primary"
+                className="group w-full rounded-full px-5 py-2.5 text-xs font-bold text-white transition-all duration-300 active:scale-[0.98] disabled:opacity-70 disabled:cursor-wait flex items-center justify-between shadow-md mt-2"
                 style={{
-                  width: "100%",
-                  justifyContent: "center",
-                  fontWeight: "700",
-                  padding: "0.7rem",
-                  background: "#059669",
-                  borderColor: "#059669",
-                  marginTop: "0.3rem"
+                  background: "linear-gradient(135deg, #1f3d2e 0%, #34634b 100%)"
                 }}
               >
-                <UserPlus size={15} />
-                <span>{isLoading ? "Mendaftarkan..." : "Daftar & Masuk Sekarang"}</span>
+                <span className="pl-1">
+                  {isLoading ? "Mendaftarkan..." : "Daftar & Masuk Sekarang"}
+                </span>
+                <div className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
+                  <UserPlus size={13} className="text-white" />
+                </div>
               </button>
             </form>
           )}
@@ -578,7 +618,6 @@ export default function LoginModal({
             </div>
           </div>
         </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }

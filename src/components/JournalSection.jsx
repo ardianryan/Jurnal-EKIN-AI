@@ -1,3 +1,4 @@
+import Sheet from "./ui/Sheet";
 import React, { useState, useRef } from "react";
 import { 
   BookOpen, Plus, PlusCircle, Camera, Trash2, Sparkles, 
@@ -24,9 +25,10 @@ export default function JournalSection({
   isSyncing = false,
   onRefreshSync = null,
   lastSyncTime = null,
-  onOpenGeminiModal = null
+  onOpenGeminiModal = null,
+  searchQuery = ""
 }) {
-  const [isFormOpen, setIsFormOpen] = useState(true);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [isPolishing, setIsPolishing] = useState(false);
   const [isPolished, setIsPolished] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -72,34 +74,75 @@ export default function JournalSection({
       for (const file of files) {
         const processed = await processEvidenceFile(file);
 
-        // Upload ke backend /api/upload agar memiliki URL link langsung di aplikasi
+        // Unggah Berkas: Prioritaskan Cloudflare R2 / S3 via Presigned URL (Direct Upload Ringan)
         let serverFileUrl = "";
         let serverStoredName = "";
         let finalFileName = processed.name;
+        let isDirectR2Uploaded = false;
+
+        // 1. Coba Presigned Token Upload ke R2
         try {
-          const uploadRes = await fetch("/api/upload", {
+          const presignRes = await fetch("/api/upload/presign", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              fileName: processed.name,
-              fileData: processed.dataUrl,
+              fileName: processed.name || file.name,
+              fileType: file.type || (processed.category === "image" ? "image/jpeg" : "application/octet-stream"),
               tanggal: formData.tanggal || new Date().toISOString().slice(0, 10)
             })
           });
-          if (uploadRes.ok) {
-            const upJson = await uploadRes.json();
-            if (upJson?.fileUrl) {
-              serverFileUrl = upJson.fileUrl;
-            }
-            if (upJson?.storedName) {
-              serverStoredName = upJson.storedName;
-            }
-            if (upJson?.fileName) {
-              finalFileName = upJson.fileName;
+
+          if (presignRes.ok) {
+            const presignData = await presignRes.json();
+            if (presignData.success && presignData.presignedUrl) {
+              // Upload langsung dari browser ke R2 via PUT (Streaming biner murni, tidak membebani server)
+              const putRes = await fetch(presignData.presignedUrl, {
+                method: "PUT",
+                headers: {
+                  "Content-Type": file.type || (processed.category === "image" ? "image/jpeg" : "application/octet-stream")
+                },
+                body: file
+              });
+
+              if (putRes.ok) {
+                serverFileUrl = presignData.publicUrl;
+                serverStoredName = presignData.storedName;
+                finalFileName = presignData.fileName || processed.name;
+                isDirectR2Uploaded = true;
+              }
             }
           }
-        } catch (netErr) {
-          // Mode offline/standalone, gunakan dataUrl lokal
+        } catch (r2Err) {
+          console.warn("Direct R2 presign upload tertunda/gagal, beralih ke upload server:", r2Err.message);
+        }
+
+        // 2. Fallback: Jika R2 belum aktif atau direct upload gagal, gunakan server upload lokal /api/upload
+        if (!isDirectR2Uploaded) {
+          try {
+            const uploadRes = await fetch("/api/upload", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                fileName: processed.name,
+                fileData: processed.dataUrl,
+                tanggal: formData.tanggal || new Date().toISOString().slice(0, 10)
+              })
+            });
+            if (uploadRes.ok) {
+              const upJson = await uploadRes.json();
+              if (upJson?.fileUrl) {
+                serverFileUrl = upJson.fileUrl;
+              }
+              if (upJson?.storedName) {
+                serverStoredName = upJson.storedName;
+              }
+              if (upJson?.fileName) {
+                finalFileName = upJson.fileName;
+              }
+            }
+          } catch (netErr) {
+            // Mode offline/standalone, gunakan dataUrl lokal
+          }
         }
 
         const isImg = processed.category === "image";
@@ -231,7 +274,7 @@ export default function JournalSection({
   const handleStartNewJournal = () => {
     resetForm();
     setIsFormOpen(true);
-    setNotification("✨ Formulir siap untuk menambah jurnal baru.");
+    setNotification("Formulir siap untuk menambah jurnal baru.");
     setTimeout(() => setNotification(""), 3000);
     setTimeout(() => {
       if (formContainerRef.current) {
@@ -307,7 +350,7 @@ export default function JournalSection({
       }));
       resetForm();
       setIsFormOpen(false);
-      setNotification("✅ Catatan aktivitas berhasil diperbarui!");
+      setNotification("Catatan aktivitas berhasil diperbarui!");
       setTimeout(() => setNotification(""), 3500);
       return;
     }
@@ -367,21 +410,21 @@ export default function JournalSection({
         spread: 50,
         origin: { y: 0.6 }
       });
-      let notifMsg = `✨ Berhasil! Catatan kasaran telah dipoles ke bahasa baku formal kedinasan ASN (${geminiApiKey ? "Gemini Online" : "Mode Cerdas Offline"}).`;
+      let notifMsg = `Berhasil! Catatan kasaran telah dipoles ke bahasa baku formal kedinasan ASN (${geminiApiKey ? "Gemini Online" : "Mode Cerdas Offline"}).`;
       const isOnlineGemini = Boolean(
         result.isOnline ||
         (result.source && (result.source.includes("gemini") || result.source.startsWith("gemini") || result.source === "server-ai"))
       );
 
       if (result.source === "offline_429") {
-        notifMsg = "⚠️ Kuota Gemini AI di Google AI Studio habis (Error 429: Prepayment credits depleted). Sistem otomatis beralih memoles dengan Mode Cerdas Offline bawaan!";
+        notifMsg = "Kuota Gemini AI di Google AI Studio habis (Error 429: Prepayment credits depleted). Sistem otomatis beralih memoles dengan Mode Cerdas Offline bawaan!";
       } else if (isOnlineGemini) {
         const modelTag = (result.source && result.source.includes("("))
           ? ` (${result.source.split("(")[1].replace(")", "")})`
           : " (Google Gemini Online)";
-        notifMsg = `✨ Berhasil! Catatan kasaran telah dipoles menggunakan Gemini AI Online${modelTag}.`;
+        notifMsg = `Berhasil! Catatan kasaran telah dipoles menggunakan Gemini AI Online${modelTag}.`;
       } else {
-        notifMsg = "✨ Berhasil! Catatan kasaran telah dipoles menggunakan Mode Cerdas Offline bawaan.";
+        notifMsg = "Berhasil! Catatan kasaran telah dipoles menggunakan Mode Cerdas Offline bawaan.";
       }
       setNotification(notifMsg);
       setTimeout(() => setNotification(""), 5000);
@@ -438,24 +481,24 @@ export default function JournalSection({
             width: "42px", 
             height: "42px", 
             borderRadius: "10px", 
-            background: "linear-gradient(135deg, #0284c7, #06b6d4)", 
+            background: "linear-gradient(135deg, #264b38, #3e7357)", 
             color: "#ffffff",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            boxShadow: "0 4px 12px rgba(6, 182, 212, 0.35)"
+            boxShadow: "0 3px 10px rgba(38, 75, 56, 0.25)"
           }}>
             <BookOpen size={22} />
           </div>
           <div>
             <h2 style={{ fontSize: "1.2rem", fontWeight: "800", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <span>Catat Aktivitas &amp; Poles Laporan Kasaran</span>
+              <span>Catat Aktivitas &amp; Poles Laporan</span>
               <span style={{ fontSize: "0.82rem", color: "var(--text-muted)", fontWeight: "600" }}>
-                ({journals.length} Aktivitas Terekam)
+                ({journals.length} Aktivitas)
               </span>
             </h2>
             <p style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
-              Ketik kasaran &bull; AI poles jadi bahasa formal kedinasan &bull; Otomatis tersusun rapi di Laporan Bulanan
+              Catatan harian ringkas &bull; Redaksi baku formal kedinasan &bull; Siap cetak laporan bulanan
             </p>
           </div>
         </div>
@@ -473,7 +516,7 @@ export default function JournalSection({
               }}
               onClick={async () => {
                 await onRefreshSync();
-                setNotification("✅ Data logbook berhasil disinkronkan dengan Telegram & Database!");
+                setNotification("Data logbook berhasil disinkronkan dengan Telegram & Database!");
                 setTimeout(() => setNotification(""), 3500);
               }}
               disabled={isSyncing}
@@ -486,17 +529,7 @@ export default function JournalSection({
 
           <button 
             type="button"
-            className="btn btn-sm"
-            style={{ 
-              background: "#2563eb", 
-              color: "#ffffff", 
-              border: "none", 
-              fontWeight: "700",
-              boxShadow: "0 2px 6px rgba(37, 99, 235, 0.25)",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.35rem"
-            }}
+            className="btn btn-secondary btn-sm"
             onClick={onOpenMonthlyReport}
             title="Buka dokumen laporan bulanan yang siap dicetak ke PDF"
           >
@@ -506,31 +539,13 @@ export default function JournalSection({
 
           <button 
             type="button"
-            className="btn btn-sm"
-            style={{
-              background: !editingId && isFormOpen ? "#059669" : "#10b981",
-              color: "#ffffff",
-              border: "none",
-              fontWeight: "700",
-              boxShadow: "0 2px 6px rgba(16, 185, 129, 0.25)",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.35rem"
-            }}
+            className="btn btn-primary btn-sm"
             onClick={handleStartNewJournal}
-            title="Buka formulir untuk menambah catatan kegiatan baru"
+            title="Buka lembar formulir untuk menambah catatan kegiatan baru"
+            style={{ fontWeight: "700" }}
           >
             <PlusCircle size={14} />
-            <span>+ Tambah Jurnal Baru</span>
-          </button>
-
-          <button 
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => setIsFormOpen(!isFormOpen)}
-            title={isFormOpen ? "Sembunyikan formulir input" : "Buka formulir input"}
-          >
-            <span>{isFormOpen ? "Tutup Form" : "Buka Form"}</span>
+            <span>Tulis Jurnal Baru</span>
           </button>
         </div>
       </div>
@@ -553,105 +568,57 @@ export default function JournalSection({
         </div>
       )}
 
-      {/* Form Input Catatan Kasar & AI Polisher */}
-      {isFormOpen && (
+      {/* Sheet Form Input Catatan Kasar & AI Polisher (Slide dari kanan di desktop, bawah di mobile) */}
+      <Sheet
+        isOpen={isFormOpen}
+        onClose={() => {
+          resetForm();
+          setIsFormOpen(false);
+        }}
+        title={editingId ? "Edit Catatan Aktivitas Kerja" : "Tulis Catatan Kerja & Poles AI"}
+        description={editingId ? "Perbarui uraian kegiatan, waktu, hasil output, atau bukti lampiran" : "Ketik catatan santai apa adanya, poles dengan AI menjadi bahasa formal kedinasan"}
+        size="lg"
+      >
         <form 
           ref={formContainerRef}
           onSubmit={handleSaveJournal}
           style={{
-            marginBottom: "1.75rem",
-            padding: "1.25rem",
-            background: "var(--bg-tertiary)",
-            border: editingId ? "2px solid var(--accent-primary, #2563eb)" : "1.5px solid #10b981",
-            borderRadius: "var(--radius-lg)",
-            boxShadow: editingId ? "0 0 0 4px rgba(37, 99, 235, 0.15)" : "0 0 0 3px rgba(16, 185, 129, 0.1)"
+            display: "flex",
+            flexDirection: "column",
+            gap: "1.25rem"
           }}
         >
-          {/* Status Mode Banner: Edit vs Tambah */}
-          {editingId ? (
+          {/* Status Mode Indicator: Edit vs Tambah */}
+          {editingId && (
             <div style={{
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              background: "rgba(37, 99, 235, 0.08)",
-              border: "1px solid #3b82f6",
-              borderRadius: "var(--radius-md)",
-              padding: "0.6rem 0.85rem",
-              marginBottom: "1rem",
+              background: "var(--bg-tertiary)",
+              border: "1px solid var(--border-subtle)",
+              borderRadius: "var(--radius-sm)",
+              padding: "0.5rem 0.85rem",
+              marginBottom: "0.75rem",
               flexWrap: "wrap",
               gap: "0.5rem"
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{
-                  background: "#2563eb",
-                  color: "#ffffff",
-                  padding: "3px 8px",
-                  borderRadius: "4px",
-                  fontSize: "0.72rem",
-                  fontWeight: "800",
-                  letterSpacing: "0.5px"
-                }}>
-                  MODE EDIT
-                </span>
-                <span style={{ fontSize: "0.84rem", fontWeight: "600", color: "var(--text-primary)" }}>
-                  Sedang mengedit jurnal: <span style={{ color: "#2563eb" }}>{formData.tanggal} ({formData.jam})</span>
-                </span>
-              </div>
+              <span style={{ fontSize: "0.82rem", fontWeight: "600", color: "var(--text-primary)" }}>
+                Mengedit aktivitas: <strong style={{ color: "var(--accent-primary)" }}>{formData.tanggal} ({formData.jam})</strong>
+              </span>
               <button
                 type="button"
-                className="btn btn-sm"
-                style={{
-                  background: "#10b981",
-                  color: "#ffffff",
-                  border: "none",
-                  fontWeight: "600",
-                  fontSize: "0.78rem",
-                  padding: "0.3rem 0.75rem",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.35rem"
-                }}
+                className="btn btn-secondary btn-sm"
                 onClick={handleStartNewJournal}
               >
                 <PlusCircle size={13} />
-                <span>Batal Edit & Buat Jurnal Baru</span>
+                <span>Batal &amp; Tulis Baru</span>
               </button>
-            </div>
-          ) : (
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              background: "rgba(16, 185, 129, 0.08)",
-              border: "1px solid #10b981",
-              borderRadius: "var(--radius-md)",
-              padding: "0.5rem 0.85rem",
-              marginBottom: "1rem",
-              flexWrap: "wrap",
-              gap: "0.5rem"
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{
-                  background: "#10b981",
-                  color: "#ffffff",
-                  padding: "3px 8px",
-                  borderRadius: "4px",
-                  fontSize: "0.72rem",
-                  fontWeight: "800",
-                  letterSpacing: "0.5px"
-                }}>
-                  MODE TAMBAH BARU
-                </span>
-                <span style={{ fontSize: "0.82rem", color: "var(--text-primary)" }}>
-                  Formulir untuk menambah catatan kegiatan harian baru ke logbook.
-                </span>
-              </div>
             </div>
           )}
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
-            <h3 style={{ fontSize: "0.95rem", fontWeight: "700", color: editingId ? "var(--accent-primary, #2563eb)" : "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-              {editingId ? <Edit3 size={16} className="text-blue-500" /> : <Sparkles size={16} className="text-amber-500" />}
+            <h3 style={{ fontSize: "0.95rem", fontWeight: "700", color: editingId ? "var(--accent-primary)" : "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+              {editingId ? <Edit3 size={16} style={{ color: "var(--accent-primary)" }} /> : <Sparkles size={16} style={{ color: "var(--accent-primary)" }} />}
               <span>{editingId ? "Edit Catatan Aktivitas Kerja" : "Tulis Catatan Kerja Kasaran & Poles dengan AI"}</span>
             </h3>
             <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
@@ -710,24 +677,12 @@ export default function JournalSection({
                   onClick={() => onOpenGeminiModal && onOpenGeminiModal()}
                   style={{
                     fontSize: "0.72rem",
-                    background: apiKeyInfo?.source === "env" 
-                      ? "rgba(16, 185, 129, 0.12)" 
-                      : apiKeyInfo?.source === "personal" 
-                      ? "rgba(139, 92, 246, 0.12)" 
-                      : "rgba(245, 158, 11, 0.12)",
-                    color: apiKeyInfo?.source === "env" 
-                      ? "#059669" 
-                      : apiKeyInfo?.source === "personal" 
-                      ? "#7c3aed" 
-                      : "#d97706",
-                    padding: "3px 9px",
-                    borderRadius: "10px",
-                    fontWeight: "700",
-                    border: `1px solid ${apiKeyInfo?.source === "env" 
-                      ? "rgba(16, 185, 129, 0.3)" 
-                      : apiKeyInfo?.source === "personal" 
-                      ? "rgba(139, 92, 246, 0.3)" 
-                      : "rgba(245, 158, 11, 0.3)"}`,
+                    background: "var(--bg-tertiary)",
+                    color: "var(--text-secondary)",
+                    padding: "3px 8px",
+                    borderRadius: "var(--radius-sm)",
+                    fontWeight: "600",
+                    border: "1px solid var(--border-subtle)",
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "5px",
@@ -739,18 +694,16 @@ export default function JournalSection({
                     width: "6px", 
                     height: "6px", 
                     borderRadius: "50%", 
-                    background: apiKeyInfo?.source === "env" 
-                      ? "#10b981" 
-                      : apiKeyInfo?.source === "personal" 
-                      ? "#8b5cf6" 
-                      : "#f59e0b" 
+                    background: apiKeyInfo?.source === "env" || apiKeyInfo?.source === "personal"
+                      ? "var(--accent-primary)" 
+                      : "#94a3b8" 
                   }}></span>
                   <span>
                     {apiKeyInfo?.source === "env" 
-                      ? "Mode: .env Sistem" 
+                      ? "AI Server (.env)" 
                       : apiKeyInfo?.source === "personal" 
-                      ? "Mode: Key Pribadi" 
-                      : "Mode: AI Offline"}
+                      ? "AI Key Pribadi" 
+                      : "AI Baku Offline"}
                   </span>
                 </button>
 
@@ -758,14 +711,14 @@ export default function JournalSection({
                   type="button"
                   className="btn btn-sm"
                   style={{
-                    background: "linear-gradient(135deg, #4f46e5, #7c3aed)",
+                    background: "linear-gradient(135deg, #264b38, #3a6b52)",
                     color: "#ffffff",
-                    border: "none",
+                    border: "1px solid rgba(255, 255, 255, 0.15)",
                     fontSize: "0.82rem",
                     fontWeight: "700",
-                    padding: "0.4rem 1rem",
-                    borderRadius: "5px",
-                    boxShadow: "0 2px 8px rgba(124, 58, 237, 0.3)",
+                    padding: "0.45rem 1.1rem",
+                    borderRadius: "6px",
+                    boxShadow: "0 2px 8px rgba(38, 75, 56, 0.25)",
                     display: "flex",
                     alignItems: "center",
                     gap: "0.4rem",
@@ -773,10 +726,10 @@ export default function JournalSection({
                   }}
                   onClick={handlePolishActivity}
                   disabled={isPolishing}
-                  title="Klik untuk otomatis mengubah bahasa kasaran menjadi narasi formal kedinasan ASN yang rapi"
+                  title="Klik untuk menyusun bahasa kasaran menjadi narasi formal kedinasan ASN yang rapi"
                 >
                   <Sparkles size={14} className={isPolishing ? "animate-spin" : ""} />
-                  <span>{isPolishing ? "Sedang Memoles dengan AI..." : "✨ AI Poles Jadi Bahasa Formal ASN"}</span>
+                  <span>{isPolishing ? "Memproses Narasi..." : "Poles Bahasa Formal ASN"}</span>
                 </button>
               </div>
             </div>
@@ -795,7 +748,7 @@ export default function JournalSection({
                   <span style={{ 
                     fontSize: "0.75rem", 
                     fontWeight: "700", 
-                    color: "var(--accent-primary, #3b82f6)", 
+                    color: "var(--accent-primary)", 
                     display: "inline-flex", 
                     alignItems: "center", 
                     gap: "5px" 
@@ -803,11 +756,11 @@ export default function JournalSection({
                     <Briefcase size={13} />
                     <span>Contoh kasaran rekan satu jabatan:</span>
                     <span style={{ 
-                      background: "rgba(59, 130, 246, 0.12)", 
+                      background: "rgba(52, 99, 75, 0.12)", 
                       padding: "2px 8px", 
                       borderRadius: "6px", 
-                      color: "#2563eb",
-                      border: "1px solid rgba(59, 130, 246, 0.25)",
+                      color: "var(--accent-primary)",
+                      border: "1px solid rgba(52, 99, 75, 0.25)",
                       fontWeight: "700"
                     }}>
                       {casualData.matchedJabatan?.nama || currentJabatan || "Umum Kedinasan"}
@@ -865,7 +818,7 @@ export default function JournalSection({
               </div>
 
               {/* Daftar Chips Contoh Kalimat Kasaran */}
-              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", flexWrap: "wrap" }}>
                 {casualData.examples.slice(0, 6).map((sample, sIdx) => (
                   <button
                     key={sIdx}
@@ -876,10 +829,10 @@ export default function JournalSection({
                       setIsPolished(false);
                     }}
                     style={{
-                      background: "var(--bg-secondary)",
-                      border: "1px dashed var(--border-strong)",
-                      borderRadius: "14px",
-                      padding: "3px 10px",
+                      background: "var(--bg-tertiary)",
+                      border: "1px solid var(--border-subtle)",
+                      borderRadius: "var(--radius-sm)",
+                      padding: "3px 8px",
                       fontSize: "0.73rem",
                       color: "var(--text-secondary)",
                       cursor: "pointer",
@@ -887,18 +840,18 @@ export default function JournalSection({
                       textAlign: "left"
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "var(--accent-primary, #3b82f6)";
+                      e.currentTarget.style.borderColor = "var(--accent-primary)";
                       e.currentTarget.style.color = "var(--text-primary)";
-                      e.currentTarget.style.background = "rgba(59, 130, 246, 0.08)";
+                      e.currentTarget.style.background = "var(--accent-primary-light)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "var(--border-strong)";
+                      e.currentTarget.style.borderColor = "var(--border-subtle)";
                       e.currentTarget.style.color = "var(--text-secondary)";
-                      e.currentTarget.style.background = "var(--bg-secondary)";
+                      e.currentTarget.style.background = "var(--bg-tertiary)";
                     }}
-                    title="Klik untuk mengisi contoh kalimat kasaran ini ke textarea"
+                    title="Isi contoh ini ke uraian kerja"
                   >
-                    "{sample}"
+                    {sample}
                   </button>
                 ))}
               </div>
@@ -912,12 +865,12 @@ export default function JournalSection({
                 setFormData({ ...formData, aktivitas: e.target.value });
                 setIsPolished(false);
               }}
-              placeholder="Contoh ketik kasaran: 'tadi benerin wifi guru yg mati terus cek router mikrotik lab' -> lalu klik tombol [ ✨ AI Poles Jadi Bahasa Formal ASN ] di atas!"
+              placeholder="Contoh ketik kasaran: 'tadi benerin wifi guru yg mati terus cek router mikrotik lab' -> lalu klik tombol [ AI Poles Jadi Bahasa Formal ASN ] di atas!"
               required
             />
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "4px" }}>
-              <span>💡 Ketik santai apa adanya, AI akan menyusunnya menjadi kalimat kedinasan yang baku dan akuntabel.</span>
+              <span>Ketik santai apa adanya, AI akan menyusunnya menjadi kalimat kedinasan yang baku dan akuntabel.</span>
               {isPolished && (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", color: "var(--accent-emerald)", fontWeight: "700" }}>
                   <CheckCircle2 size={13} /> Sudah Dipoles Formal ASN
@@ -939,7 +892,7 @@ export default function JournalSection({
               placeholder="Contoh: Disertai foto dokumentasi fisik lapangan, atau catatan kualitatif hasil kegiatan..."
             />
             <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "3px", display: "block" }}>
-              💡 Catatan ini akan dicantumkan di bawah uraian kegiatan pada laporan bulanan & PDF (otomatis terisi saat dipoles AI).
+              Catatan ini akan dicantumkan di bawah uraian kegiatan pada laporan bulanan & PDF (otomatis terisi saat dipoles AI).
             </span>
           </div>
 
@@ -1048,7 +1001,7 @@ export default function JournalSection({
                     onClick={() => fileInputRef.current?.click()}
                     style={{ alignSelf: "flex-start", marginTop: "0.25rem", fontSize: "0.75rem", display: "inline-flex", alignItems: "center", gap: "4px" }}
                   >
-                    <Paperclip size={12} /> + Tambah Berkas Lainnya
+                    <Paperclip size={12} /> Tambah Berkas Lainnya
                   </button>
                 </div>
               )}
@@ -1104,29 +1057,29 @@ export default function JournalSection({
                   setIsFormOpen(false);
                 }}
               >
-                {editingId ? "Batal & Tutup Form" : "Tutup Form"}
+                {editingId ? "Batal & Tutup" : "Batal"}
               </button>
               <button 
                 type="submit" 
-                className="btn btn-sm"
+                className="btn btn-primary btn-sm"
                 style={{
-                  background: editingId ? "#2563eb" : "#10b981",
+                  background: "linear-gradient(135deg, #264b38, #3a6b52)",
                   color: "#ffffff",
                   border: "none",
                   fontWeight: "700",
                   display: "flex",
                   alignItems: "center",
                   gap: "0.35rem",
-                  boxShadow: editingId ? "0 2px 6px rgba(37, 99, 235, 0.3)" : "0 2px 6px rgba(16, 185, 129, 0.3)"
+                  boxShadow: "0 2px 8px rgba(38, 75, 56, 0.25)"
                 }}
               >
                 {editingId ? <CheckCircle2 size={14} /> : <PlusCircle size={14} />}
-                <span>{editingId ? "Simpan Perubahan Edit" : "Simpan Sebagai Jurnal Baru"}</span>
+                <span>{editingId ? "Simpan Perubahan" : "Simpan Sebagai Jurnal"}</span>
               </button>
             </div>
           </div>
         </form>
-      )}
+      </Sheet>
 
       {/* Daftar Jurnal & Galeri Berkas / Foto */}
       {journals.length === 0 ? (
@@ -1142,7 +1095,7 @@ export default function JournalSection({
             Belum Ada Catatan Aktivitas atau Bukti Foto
           </h4>
           <p style={{ fontSize: "0.82rem", maxWidth: "450px", margin: "0 auto 1rem auto" }}>
-            Tulis catatan kerja kasaran Anda pada formulir di atas (boleh bahasa santai/kasar), lalu klik <strong>"✨ AI Poles Jadi Bahasa Formal ASN"</strong> untuk langsung merapikannya!
+            Tulis catatan kerja harian Anda pada formulir di atas secara ringkas, lalu klik <strong>"Poles Bahasa Formal ASN"</strong> untuk menyusunnya ke narasi resmi!
           </p>
           <div style={{ display: "flex", justifyContent: "center", gap: "0.5rem" }}>
             <button className="btn btn-primary btn-sm" onClick={handleStartNewJournal}>
@@ -1182,25 +1135,27 @@ export default function JournalSection({
 
             <button
               type="button"
-              className="btn btn-sm"
-              style={{
-                background: "#10b981",
-                color: "#ffffff",
-                border: "none",
-                fontWeight: "600",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.35rem",
-                boxShadow: "0 2px 6px rgba(16, 185, 129, 0.25)"
-              }}
+              className="btn btn-primary btn-sm"
               onClick={handleStartNewJournal}
               title="Tambah catatan kegiatan baru"
             >
               <PlusCircle size={14} />
-              <span>+ Tambah Jurnal Baru</span>
+              <span>Tulis Jurnal Baru</span>
             </button>
           </div>
-          {journals.map((j, index) => {
+          {journals
+            .filter((j) => {
+              if (!searchQuery || !searchQuery.trim()) return true;
+              const q = searchQuery.toLowerCase().trim();
+              return (
+                (j.aktivitas && j.aktivitas.toLowerCase().includes(q)) ||
+                (j.aktivitasKasaran && j.aktivitasKasaran.toLowerCase().includes(q)) ||
+                (j.tanggal && j.tanggal.toLowerCase().includes(q)) ||
+                (j.outputJumlah && j.outputJumlah.toLowerCase().includes(q)) ||
+                (j.catatan && j.catatan.toLowerCase().includes(q))
+              );
+            })
+            .map((j, index) => {
             const attList = Array.isArray(j.attachments) && j.attachments.length > 0
               ? j.attachments
               : (j.fotoUrl || j.fileName ? [{ type: j.evidenceType || (j.fotoUrl ? "image" : "document"), fotoUrl: j.fotoUrl, fileName: j.fileName, fileSize: j.fileSize, docCategory: j.docCategory }] : []);
@@ -1214,13 +1169,14 @@ export default function JournalSection({
               <div 
                 key={j.id || index}
                 style={{
-                  background: editingId === j.id ? "rgba(37, 99, 235, 0.06)" : "var(--bg-secondary)",
-                  border: editingId === j.id ? "1.5px solid var(--accent-primary, #2563eb)" : "1px solid var(--border-subtle)",
+                  background: editingId === j.id ? "var(--accent-emerald-subtle)" : "var(--bg-secondary)",
+                  border: editingId === j.id ? "1.5px solid var(--accent-primary)" : "1px solid var(--border-subtle)",
                   borderRadius: "var(--radius-md)",
                   padding: "0.75rem 1rem",
                   display: "flex",
                   alignItems: "center",
                   gap: "1rem",
+                  flexWrap: "wrap",
                   transition: "background var(--transition-fast), border-color var(--transition-fast)"
                 }}
               >
@@ -1303,7 +1259,7 @@ export default function JournalSection({
                   {editingId === j.id && (
                     <div style={{ marginTop: "4px" }}>
                       <span style={{
-                        background: "#2563eb",
+                        background: "var(--accent-primary)",
                         color: "#ffffff",
                         fontSize: "0.65rem",
                         fontWeight: "800",
@@ -1412,9 +1368,9 @@ export default function JournalSection({
                       }
                     }}
                     style={{ 
-                      color: editingId === j.id ? "#ffffff" : "var(--accent-primary, #2563eb)", 
-                      borderColor: editingId === j.id ? "var(--accent-primary, #2563eb)" : "var(--border-subtle)",
-                      background: editingId === j.id ? "var(--accent-primary, #2563eb)" : "transparent",
+                      color: editingId === j.id ? "#ffffff" : "var(--accent-primary)", 
+                      borderColor: editingId === j.id ? "var(--accent-primary)" : "var(--border-subtle)",
+                      background: editingId === j.id ? "var(--accent-primary)" : "transparent",
                       width: "30px", 
                       height: "30px", 
                       padding: 0 

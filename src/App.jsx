@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Header from "./components/Header";
+import Sidebar from "./components/Sidebar";
 import HomeSection from "./components/HomeSection";
 import JournalSection from "./components/JournalSection";
 import MonthlyReportGenerator from "./components/MonthlyReportGenerator";
 import GeminiModal from "./components/GeminiModal";
-import AccountManagerModal from "./components/AccountManagerModal";
+import PegawaiSection from "./components/PegawaiSection";
+import SettingsSection from "./components/SettingsSection";
 import LoginModal from "./components/LoginModal";
 import LoginPage from "./components/LoginPage";
 import InitialSetupModal from "./components/InitialSetupModal";
@@ -16,6 +18,8 @@ import {
   setCurrentUser as saveCurrentUser, 
   logout,
   isProfileIncomplete,
+  handleSsoLoginSession,
+  fetchSsoConfig,
   getAllowEnvKeySetting,
   setAllowEnvKeySetting,
   resolveEffectiveApiKey,
@@ -26,7 +30,11 @@ import {
   fetchTelegramBotStatus,
   getServerAiConfig,
   fetchServerAiStatus,
-  getSessionInfo
+  getSessionInfo,
+  getSchoolName,
+  setSchoolName,
+  getSchoolLogo,
+  applyDynamicFavicon
 } from "./services/accountService";
 
 import { Home, Camera, FileText } from "lucide-react";
@@ -182,7 +190,6 @@ export default function App() {
 
   // State Pengguna & Autentikasi
   const [currentUser, setCurrentUserState] = useState(() => getCurrentUser());
-  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isInitialSetupOpen, setIsInitialSetupOpen] = useState(false);
 
@@ -200,6 +207,8 @@ export default function App() {
     const hash = window.location.hash.replace(/^#\/?/, "").trim().toLowerCase();
     if (hash === "laporan") return "laporan";
     if (hash === "jurnal") return "jurnal";
+    if (hash === "pegawai" || hash === "guru" || hash === "akun" || hash === "admin") return "pegawai";
+    if (hash === "pengaturan" || hash === "settings" || hash === "instansi") return "pengaturan";
     if (hash === "home" || hash === "beranda") return "home";
     return "home"; // default halaman utama adalah Beranda
   };
@@ -224,15 +233,39 @@ export default function App() {
 
     window.addEventListener("hashchange", handleHashChange);
 
+    // Cek apakah ada redirect dari callback Zitadel SSO: #/sso-callback?token=...&user=...
+    const fullHash = window.location.hash || "";
+    if (fullHash.includes("sso-callback")) {
+      try {
+        const queryIndex = fullHash.indexOf("?");
+        if (queryIndex !== -1) {
+          const searchParams = new URLSearchParams(fullHash.substring(queryIndex));
+          const token = searchParams.get("token");
+          const userJson = searchParams.get("user");
+          if (token && userJson) {
+            const parsedUser = JSON.parse(decodeURIComponent(userJson));
+            const loggedInUser = handleSsoLoginSession(token, parsedUser);
+            if (loggedInUser) {
+              setCurrentUserState(loggedInUser);
+              window.location.hash = "#/home";
+              return () => window.removeEventListener("hashchange", handleHashChange);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Gagal memproses sesi SSO Callback:", e);
+      }
+    }
+
     // Set initial hash
     if (currentUser) {
       const rawHash = window.location.hash.replace(/^#\/?/, "").trim().toLowerCase();
-      if (!rawHash || rawHash === "login" || rawHash === "register" || rawHash === "daftar" || rawHash === "masuk") {
+      if (!rawHash || rawHash === "login" || rawHash === "register" || rawHash === "daftar" || rawHash === "masuk" || rawHash.startsWith("sso-callback")) {
         window.location.hash = `#/home`;
       }
     } else {
       const rawHash = window.location.hash.replace(/^#\/?/, "").trim().toLowerCase();
-      if (rawHash !== "login" && rawHash !== "register" && rawHash !== "daftar") {
+      if (rawHash !== "login" && rawHash !== "register" && rawHash !== "daftar" && !rawHash.startsWith("sso-callback")) {
         let defaultAuthTab = "login";
         try {
           const saved = localStorage.getItem("ekinerja_auth_tab");
@@ -324,6 +357,31 @@ export default function App() {
 
   // Modal Gemini Key
   const [isGeminiModalOpen, setIsGeminiModalOpen] = useState(false);
+  const [isSidebarOpenMobile, setIsSidebarOpenMobile] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [schoolName, setSchoolNameState] = useState(() => getSchoolName());
+  const [schoolLogo, setSchoolLogoState] = useState(() => getSchoolLogo());
+
+  // Pasang favicon dinamis & perbarui judul dokumen browser
+  useEffect(() => {
+    applyDynamicFavicon();
+    if (schoolName) {
+      document.title = `E-Kinerja | ${schoolName}`;
+    }
+    const handleLogoChange = (e) => {
+      setSchoolLogoState(e.detail?.logo || null);
+    };
+    window.addEventListener("ekinerja_logo_changed", handleLogoChange);
+    return () => window.removeEventListener("ekinerja_logo_changed", handleLogoChange);
+  }, [schoolName]);
+
+  const handleUpdateSchoolName = (newName) => {
+    const saved = setSchoolName(newName);
+    setSchoolNameState(saved);
+    if (saved) {
+      document.title = `E-Kinerja | ${saved}`;
+    }
+  };
 
   const handleSaveUserKey = (personalKey, usePersonal, modeChoice = null) => {
     const updatedUser = {
@@ -373,62 +431,64 @@ export default function App() {
 
   // Jika belum login, tampilkan Halaman Login Mandiri
   if (!currentUser) {
-    return <LoginPage onLoginSuccess={handleUserChanged} />;
+    return (
+      <LoginPage 
+        onLoginSuccess={handleUserChanged} 
+        schoolName={schoolName}
+        schoolLogo={schoolLogo}
+      />
+    );
   }
 
   return (
-    <div className="app-container">
-      {/* Header Bar */}
-      <Header 
+    <div className="app-shell">
+      {/* Google Account Modern Sidebar */}
+      <Sidebar
+        activeTab={activeTab}
+        onNavigate={navigateToTab}
+        journalsCount={journals.length}
+        currentUser={currentUser}
+        onOpenGeminiModal={() => setIsGeminiModalOpen(true)}
+        onOpenLoginModal={() => setIsLoginModalOpen(true)}
+        onLogout={handleLogout}
+        onExportJson={handleExportJson}
         theme={theme}
         setTheme={setTheme}
-        onOpenGeminiModal={() => setIsGeminiModalOpen(true)}
-        onExportJson={handleExportJson}
-        onImportJson={handleImportJson}
-        hasGeminiKey={Boolean(activeGeminiKey)}
-        isKeyFromEnv={effectiveApiKeyInfo.source === "env"}
-        onNavigate={navigateToTab}
-        currentUser={currentUser}
-        onOpenLoginModal={() => setIsLoginModalOpen(true)}
-        onOpenAccountManagerModal={() => setIsAccountModalOpen(true)}
-        onLogout={handleLogout}
-        apiKeyInfo={effectiveApiKeyInfo}
+        isOpenMobile={isSidebarOpenMobile}
+        onCloseMobile={() => setIsSidebarOpenMobile(false)}
         botConfig={botConfig}
-        isSyncing={isSyncing}
-        onRefreshSync={() => fetchAndSyncJournals(true)}
+        apiKeyInfo={effectiveApiKeyInfo}
+        schoolName={schoolName}
+        schoolLogo={schoolLogo}
       />
 
-      {/* Tab Navigation dengan URL Hash */}
-      <div className="tabs-nav no-print">
-        <button 
-          className={`tab-btn ${activeTab === "home" ? "active" : ""}`}
-          onClick={() => navigateToTab("home")}
-          title="Beranda & Ringkasan Dashboard"
-        >
-          <Home size={16} />
-          <span>Beranda</span>
-        </button>
+      {/* Main Content Workspace */}
+      <div className="app-main-wrapper">
+        {/* Google Account Modern Header Bar */}
+        <Header 
+          theme={theme}
+          setTheme={setTheme}
+          onOpenGeminiModal={() => setIsGeminiModalOpen(true)}
+          onExportJson={handleExportJson}
+          onImportJson={handleImportJson}
+          hasGeminiKey={Boolean(activeGeminiKey)}
+          isKeyFromEnv={effectiveApiKeyInfo.source === "env"}
+          currentUser={currentUser}
+          onOpenLoginModal={() => setIsLoginModalOpen(true)}
+          onLogout={handleLogout}
+          apiKeyInfo={effectiveApiKeyInfo}
+          botConfig={botConfig}
+          isSyncing={isSyncing}
+          onRefreshSync={() => fetchAndSyncJournals(true)}
+          onToggleSidebarMobile={() => setIsSidebarOpenMobile(!isSidebarOpenMobile)}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          schoolName={schoolName}
+          schoolLogo={schoolLogo}
+        />
 
-        <button 
-          className={`tab-btn ${activeTab === "jurnal" ? "active" : ""}`}
-          onClick={() => navigateToTab("jurnal")}
-          title="Tulis Catatan Harian Kasaran & Poles AI"
-        >
-          <Camera size={16} />
-          <span>Jurnal &amp; Bukti Foto ({journals.length})</span>
-        </button>
-
-        <button 
-          className={`tab-btn ${activeTab === "laporan" ? "active" : ""}`}
-          onClick={() => navigateToTab("laporan")}
-          style={{ fontWeight: "700" }}
-          title="Tabel Laporan Bulanan (PDF & Google Drive)"
-        >
-          <FileText size={16} />
-          <span>Laporan Bulanan (PDF &amp; Drive)</span>
-        </button>
-      </div>
-
+        {/* Dynamic Page Container */}
+        <main className="app-page-content" id="main-content">
       {/* Content Tab 0: Halaman Beranda (Home Dashboard) */}
       {activeTab === "home" && (
         <HomeSection 
@@ -436,8 +496,8 @@ export default function App() {
           journals={journals}
           onNavigate={navigateToTab}
           currentUser={currentUser}
-          onOpenAccountManagerModal={() => setIsAccountModalOpen(true)}
           botConfig={botConfig}
+          schoolName={schoolName}
         />
       )}
 
@@ -457,6 +517,7 @@ export default function App() {
           onRefreshSync={() => fetchAndSyncJournals(true)}
           lastSyncTime={lastSyncTime}
           onOpenGeminiModal={() => setIsGeminiModalOpen(true)}
+          searchQuery={searchQuery}
         />
       )}
 
@@ -469,23 +530,36 @@ export default function App() {
           journals={journals}
           pendekatan={pendekatan}
           onSyncLinkToRhk={() => {}}
+          schoolName={schoolName}
+          schoolLogo={schoolLogo}
         />
       )}
 
-      {/* Modal Manajemen Akun Superadmin & Impor Excel */}
-      <AccountManagerModal 
-        isOpen={isAccountModalOpen}
-        onClose={() => setIsAccountModalOpen(false)}
-        currentUser={currentUser}
-        onUserChanged={handleUserChanged}
-        allowEnvKey={allowEnvKey}
-        onToggleAllowEnvKey={handleToggleAllowEnvKey}
-        hasEnvKey={isKeyFromEnv}
-        onOpenGeminiSettings={() => {
-          setIsAccountModalOpen(false);
-          setIsGeminiModalOpen(true);
-        }}
-      />
+      {/* Content Tab 3: Data Pegawai & Guru (Superadmin) */}
+      {activeTab === "pegawai" && (
+        <PegawaiSection 
+          currentUser={currentUser}
+          onUserChanged={handleUserChanged}
+          schoolName={schoolName}
+          onNavigate={navigateToTab}
+        />
+      )}
+
+      {/* Content Tab 4: Pengaturan Instansi & Sistem (Superadmin) */}
+      {activeTab === "pengaturan" && (
+        <SettingsSection 
+          currentUser={currentUser}
+          schoolName={schoolName}
+          onUpdateSchoolName={handleUpdateSchoolName}
+          schoolLogo={schoolLogo}
+          onUpdateSchoolLogo={setSchoolLogoState}
+          allowEnvKey={allowEnvKey}
+          onToggleAllowEnvKey={handleToggleAllowEnvKey}
+          hasEnvKey={isKeyFromEnv}
+          onOpenGeminiSettings={() => setIsGeminiModalOpen(true)}
+          onNavigate={navigateToTab}
+        />
+      )}
 
       {/* Modal Login & Ganti Akun */}
       <LoginModal 
@@ -507,6 +581,9 @@ export default function App() {
         onLogout={handleLogout}
       />
 
+        </main>
+      </div>
+
       {/* Modal Pengaturan Gemini AI Key */}
       <GeminiModal 
         isOpen={isGeminiModalOpen}
@@ -518,6 +595,44 @@ export default function App() {
         allowEnvKey={allowEnvKey}
         onToggleAllowEnvKey={handleToggleAllowEnvKey}
       />
+
+      {/* Mobile Bottom Navigation (Aesthetic Native App Experience on Phone) */}
+      <nav className="mobile-bottom-nav no-print" aria-label="Navigasi Utama">
+        <button 
+          type="button"
+          className={`mobile-nav-item ${activeTab === "home" ? "active" : ""}`}
+          onClick={() => navigateToTab("home")}
+          aria-label="Beranda"
+        >
+          <Home size={19} />
+          <span>Beranda</span>
+        </button>
+
+        <button 
+          type="button"
+          className={`mobile-nav-item ${activeTab === "jurnal" ? "active" : ""}`}
+          onClick={() => navigateToTab("jurnal")}
+          aria-label="Jurnal & Foto"
+        >
+          <div className="mobile-nav-icon-wrap">
+            <Camera size={19} />
+            {journals.length > 0 && (
+              <span className="mobile-nav-badge">{journals.length > 99 ? "99+" : journals.length}</span>
+            )}
+          </div>
+          <span>Jurnal</span>
+        </button>
+
+        <button 
+          type="button"
+          className={`mobile-nav-item ${activeTab === "laporan" ? "active" : ""}`}
+          onClick={() => navigateToTab("laporan")}
+          aria-label="Laporan Bulanan"
+        >
+          <FileText size={19} />
+          <span>Laporan</span>
+        </button>
+      </nav>
     </div>
   );
 }

@@ -51,8 +51,16 @@ export default function ProfileForm({
             }}
             onClick={onLoadSmk07Demo}
             title="Muat profil SMK N 07 Samarinda sesuai tampilan BKN"
+            style={{
+              fontSize: "0.75rem", 
+              display: "inline-flex", 
+              alignItems: "center", 
+              gap: "0.35rem",
+              padding: "0.25rem 0.65rem"
+            }}
           >
-            🏫 Muat Contoh SMK N 07 Samarinda
+            <Building2 size={13} />
+            <span>Muat Contoh SMK N 07 Samarinda</span>
           </button>
         )}
       </div>

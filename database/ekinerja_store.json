@@ -3,7 +3,7 @@
     {
       "id": "usr-superadmin",
       "username": "superadmin",
-      "password": "admin123",
+      "password": "scrypt:5ec365cf0915eb123b33ad1eee0656fc:a116b5e64915d8333035305a7a30b9cdab6378502fcbe81195e39025cad949f215707ee9eb21296191f18701c9b29fa1ce30858c2d65c40f17a213b402347497",
       "role": "superadmin",
       "nama": "Super Administrator",
       "nip": "198001012005011001",
@@ -77,9 +77,30 @@
   ],
   "telegramSessions": {},
   "settings": {
-    "gdriveLink": ""
+    "gdriveLink": "",
+    "sso": {
+      "enabled": false,
+      "issuer": "",
+      "clientId": "",
+      "clientSecret": "",
+      "buttonText": "Masuk dengan SSO"
+    },
+    "registrationPolicy": {
+      "mode": "open",
+      "closedRegistrationUrl": "",
+      "closedRegistrationMessage": "Pendaftaran akun mandiri dinonaktifkan oleh administrator. Silakan lakukan pendaftaran melalui portal resmi instansi berikut:"
+    }
   },
-  "updatedAt": "2026-09-05T08:27:55.714Z",
+  "updatedAt": "2026-09-07T05:14:53.538Z",
   "registrationCodes": [],
-  "webSessions": {}
+  "webSessions": {
+    "sess_ba0e20236402e05e2b99ccfc85be6927dad4360f4824c418": {
+      "token": "sess_ba0e20236402e05e2b99ccfc85be6927dad4360f4824c418",
+      "userId": "usr-superadmin",
+      "username": "superadmin",
+      "role": "superadmin",
+      "createdAt": 1788754981183,
+      "expiresAt": 1788841381183
+    }
+  }
 }

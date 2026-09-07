@@ -37,6 +37,7 @@ function apiSyncPlugin() {
         ONE_DAY_MS
       } = dbStore
       const { generateMonthlyReportPdf, generateMonthlyReportZip } = pdfGen
+      const r2Service = await import('./server/r2StorageService.js')
 
       // Muat .env jika tersedia
       if (fs.existsSync('.env') && typeof process.loadEnvFile === 'function') {
@@ -356,7 +357,137 @@ function apiSyncPlugin() {
         fs.createReadStream(filePath).pipe(res)
       })
 
-      // 2. Upload Berkas Endpoint di Dev Server
+      // 1.B Endpoint Presign R2 / S3 Storage di Dev Server (Direct Upload Ringan)
+      server.middlewares.use('/api/upload/presign', (req, res, next) => {
+        if (req.method !== 'POST') return next()
+        let body = ''
+        req.on('data', chunk => (body += chunk))
+        req.on('end', async () => {
+          try {
+            const { fileName, fileType, tanggal } = JSON.parse(body || '{}')
+            if (!r2Service.isR2Configured()) {
+              res.setHeader('Content-Type', 'application/json')
+              return res.end(JSON.stringify({
+                success: false,
+                mode: 'local',
+                message: 'R2 tidak aktif, gunakan upload lokal'
+              }))
+            }
+            const presignRes = await r2Service.generatePresignedUploadUrl({
+              fileName: fileName || 'dokumen.pdf',
+              fileType: fileType || 'application/octet-stream',
+              tanggal: tanggal || ''
+            })
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify(presignRes))
+          } catch (err) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ success: false, error: err.message }))
+          }
+        })
+      })
+
+      // Status Storage Cloudflare R2
+      server.middlewares.use('/api/storage/status', (req, res, next) => {
+        if (req.method !== 'GET') return next()
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify(r2Service.getR2Status()))
+      })
+
+      // Scan Berkas Storage Berdasarkan Pilihan Tahun
+      server.middlewares.use('/api/storage/cleanup/scan', (req, res, next) => {
+        if (req.method !== 'POST') return next()
+        let body = ''
+        req.on('data', chunk => (body += chunk))
+        req.on('end', async () => {
+          try {
+            const payload = JSON.parse(body || '{}')
+            const targetYear = payload.targetYear || (new Date().getFullYear() - 1)
+            const mode = payload.mode || 'before_or_equal'
+            const result = await r2Service.scanR2ObjectsByYear({ targetYear, mode, limit: 200 })
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify(result))
+          } catch (err) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ success: false, error: err.message }))
+          }
+        })
+      })
+
+      // Eksekusi Pembersihan Berkas Storage Berdasarkan Pilihan Tahun
+      server.middlewares.use('/api/storage/cleanup/execute', (req, res, next) => {
+        if (req.method !== 'POST') return next()
+        let body = ''
+        req.on('data', chunk => (body += chunk))
+        req.on('end', async () => {
+          try {
+            const payload = JSON.parse(body || '{}')
+            const targetYear = payload.targetYear
+            const mode = payload.mode || 'before_or_equal'
+            if (!targetYear) {
+              res.statusCode = 400
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ success: false, error: 'Tahun target wajib dipilih.' }))
+              return
+            }
+            const result = await r2Service.cleanupR2ObjectsByYear({ targetYear, mode })
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify(result))
+          } catch (err) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ success: false, error: err.message }))
+          }
+        })
+      })
+
+      // Hapus Berkas Upload (R2 / Lokal) di Dev Server
+      server.middlewares.use('/api/uploads/delete', (req, res, next) => {
+        if (req.method !== 'POST') return next()
+        let body = ''
+        req.on('data', chunk => (body += chunk))
+        req.on('end', async () => {
+          try {
+            const { fileUrl, filePath, fileName, storedName } = JSON.parse(body || '{}')
+            let deleted = false
+            if (fileUrl && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
+              deleted = await r2Service.deleteR2Object(fileUrl)
+            } else if (storedName && r2Service.isR2Configured() && !storedName.startsWith('/uploads/')) {
+              deleted = await r2Service.deleteR2Object(storedName)
+            }
+
+            const candidates = []
+            if (filePath) candidates.push(path.resolve(UPLOADS_DIR, path.basename(filePath)))
+            if (storedName) candidates.push(path.resolve(UPLOADS_DIR, path.basename(storedName)))
+            if (fileName) candidates.push(path.resolve(UPLOADS_DIR, path.basename(fileName)))
+            if (fileUrl && typeof fileUrl === 'string') {
+              const cleanUrl = fileUrl.split('?')[0].split('#')[0]
+              const bName = path.basename(cleanUrl)
+              if (bName) candidates.push(path.resolve(UPLOADS_DIR, bName))
+            }
+
+            for (const fPath of Array.from(new Set(candidates.filter(Boolean)))) {
+              try {
+                if (fPath.startsWith(UPLOADS_DIR) && fs.existsSync(fPath)) {
+                  fs.unlinkSync(fPath)
+                  deleted = true
+                }
+              } catch (e) {}
+            }
+
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ success: true, deleted }))
+          } catch (err) {
+            res.statusCode = 400
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ success: false, error: err.message }))
+          }
+        })
+      })
+
+      // 2. Upload Berkas Endpoint di Dev Server (Fallback Lokal)
       server.middlewares.use('/api/upload', (req, res, next) => {
         if (req.method !== 'POST') return next()
         let body = ''

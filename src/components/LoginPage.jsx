@@ -12,15 +12,21 @@ import {
   UserPlus,
   Briefcase,
   Building,
-  CheckCircle2
+  CheckCircle2,
+  ArrowRight,
+  School,
+  Lock,
+  FileCheck2,
+  Cpu,
+  BadgeCheck
 } from "lucide-react";
-import { authenticate, registerAccount } from "../services/accountService";
+import { authenticate, registerAccount, getSchoolName, getSchoolLogo, fetchSsoConfig, getCachedSsoConfig } from "../services/accountService";
 
 // Helper membaca posisi tab dari URL hash atau localStorage
 const getInitialAuthTab = () => {
   const hash = window.location.hash.replace(/^#\/?/, "").trim().toLowerCase();
-  if (hash === "register" || hash === "daftar") return "register";
-  if (hash === "login" || hash === "masuk") return "login";
+  if (hash.startsWith("register") || hash.startsWith("daftar")) return "register";
+  if (hash.startsWith("login") || hash.startsWith("masuk")) return "login";
   try {
     const saved = localStorage.getItem("ekinerja_auth_tab");
     if (saved === "register") return "register";
@@ -28,8 +34,20 @@ const getInitialAuthTab = () => {
   return "login";
 };
 
-export default function LoginPage({ onLoginSuccess }) {
+export default function LoginPage({ 
+  onLoginSuccess,
+  schoolName: propSchoolName,
+  schoolLogo: propSchoolLogo
+}) {
   const [activeTab, setActiveTabState] = useState(getInitialAuthTab);
+  const [ssoConfig, setSsoConfig] = useState(() => getCachedSsoConfig());
+  const [schoolLogo, setSchoolLogo] = useState(() => propSchoolLogo || getSchoolLogo());
+
+  useEffect(() => {
+    if (propSchoolLogo !== undefined) {
+      setSchoolLogo(propSchoolLogo);
+    }
+  }, [propSchoolLogo]);
 
   const switchTab = (tab) => {
     setActiveTabState(tab);
@@ -41,14 +59,44 @@ export default function LoginPage({ onLoginSuccess }) {
     window.location.hash = `#${tab}`;
   };
 
-  // Sinkronisasi dengan URL hash saat pertama kali mount dan saat tombol Back/Forward browser ditekan
+  // Muat konfigurasi SSO & cek pesan error dari URL callback / redirect
   useEffect(() => {
+    fetchSsoConfig().then(cfg => {
+      if (cfg) setSsoConfig(cfg);
+    });
+
+    const checkUrlError = () => {
+      // Periksa query params baik di search maupun hash (misal #/login?error=...)
+      const fullUrl = window.location.href;
+      let error = null;
+      if (window.location.search) {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has("error")) error = params.get("error");
+      }
+      if (!error && fullUrl.includes("?")) {
+        const queryPart = fullUrl.substring(fullUrl.indexOf("?"));
+        const params = new URLSearchParams(queryPart);
+        if (params.has("error")) error = params.get("error");
+      }
+
+      if (error) {
+        setErrorMsg(decodeURIComponent(error));
+        // Bersihkan query string dari URL agar tidak muncul terus saat refresh
+        try {
+          const cleanUrl = window.location.origin + window.location.pathname + "#/login";
+          window.history.replaceState(null, "", cleanUrl);
+        } catch (e) {}
+      }
+    };
+
+    checkUrlError();
+
     const syncFromHash = () => {
       const hash = window.location.hash.replace(/^#\/?/, "").trim().toLowerCase();
-      if (hash === "register" || hash === "daftar") {
+      if (hash.startsWith("register") || hash.startsWith("daftar")) {
         setActiveTabState("register");
         try { localStorage.setItem("ekinerja_auth_tab", "register"); } catch (e) {}
-      } else if (hash === "login" || hash === "masuk") {
+      } else if (hash.startsWith("login") || hash.startsWith("masuk")) {
         setActiveTabState("login");
         try { localStorage.setItem("ekinerja_auth_tab", "login"); } catch (e) {}
       }
@@ -56,7 +104,6 @@ export default function LoginPage({ onLoginSuccess }) {
 
     window.addEventListener("hashchange", syncFromHash);
 
-    // Pastikan URL di browser langsung mencerminkan #login atau #register (bukan #home atau kosong)
     const currentHash = window.location.hash.replace(/^#\/?/, "").trim().toLowerCase();
     if (currentHash !== "login" && currentHash !== "register" && currentHash !== "daftar") {
       const initial = getInitialAuthTab();
@@ -70,6 +117,7 @@ export default function LoginPage({ onLoginSuccess }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   // State Registrasi
   const [regCode, setRegCode] = useState("");
@@ -87,6 +135,8 @@ export default function LoginPage({ onLoginSuccess }) {
   const [successMsg, setSuccessMsg] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  const schoolName = propSchoolName || getSchoolName();
+
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg("");
@@ -103,7 +153,7 @@ export default function LoginPage({ onLoginSuccess }) {
       setIsLoading(false);
 
       if (!user) {
-        setErrorMsg("Username atau password salah. Periksa kembali data login Anda.");
+        setErrorMsg("Username atau password salah. Silakan periksa kembali kredensial Anda.");
         return;
       }
 
@@ -120,15 +170,15 @@ export default function LoginPage({ onLoginSuccess }) {
     setSuccessMsg("");
 
     if (!regCode.trim()) {
-      setErrorMsg("Kode Registrasi wajib diisi! Hubungi Administrator untuk mendapatkan kode pendaftaran resmi.");
+      setErrorMsg("Kode Registrasi wajib diisi. Hubungi Administrator untuk mendapatkan kode resmi.");
       return;
     }
     if (!regNama.trim()) {
-      setErrorMsg("Nama Lengkap wajib diisi!");
+      setErrorMsg("Nama Lengkap wajib diisi.");
       return;
     }
     if (!regNip.trim()) {
-      setErrorMsg("NIP Pegawai wajib diisi (atau ketik '-' jika non-ASN)!");
+      setErrorMsg("NIP Pegawai wajib diisi (atau ketik '-' jika non-ASN).");
       return;
     }
     if (!regUsername.trim() || regUsername.trim().length < 3) {
@@ -144,7 +194,7 @@ export default function LoginPage({ onLoginSuccess }) {
       return;
     }
     if (regPassword !== regConfirmPassword) {
-      setErrorMsg("Konfirmasi password tidak cocok dengan password yang dibuat!");
+      setErrorMsg("Konfirmasi password tidak cocok dengan password yang dibuat.");
       return;
     }
 
@@ -162,7 +212,7 @@ export default function LoginPage({ onLoginSuccess }) {
       });
 
       setIsLoading(false);
-      setSuccessMsg(`Pendaftaran berhasil! Selamat datang, ${newUser.nama}. Mengalihkan ke aplikasi...`);
+      setSuccessMsg(`Pendaftaran berhasil. Selamat datang, ${newUser.nama}. Mengalihkan ke aplikasi...`);
 
       setTimeout(() => {
         onLoginSuccess(newUser);
@@ -174,628 +224,581 @@ export default function LoginPage({ onLoginSuccess }) {
   };
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      background: "radial-gradient(ellipse at top, #1e3a8a 0%, #0f172a 100%)",
-      padding: "1.5rem",
-      fontFamily: "var(--font-family, system-ui, -apple-system, sans-serif)",
-      position: "relative",
-      overflow: "hidden"
-    }}>
-      {/* Decorative Glow Elements */}
-      <div style={{
-        position: "absolute",
-        top: "-100px",
-        right: "-100px",
-        width: "350px",
-        height: "350px",
-        borderRadius: "50%",
-        background: "rgba(37, 99, 235, 0.18)",
-        filter: "blur(80px)",
-        pointerEvents: "none"
-      }} />
-      <div style={{
-        position: "absolute",
-        bottom: "-120px",
-        left: "-100px",
-        width: "400px",
-        height: "400px",
-        borderRadius: "50%",
-        background: "rgba(124, 58, 237, 0.15)",
-        filter: "blur(90px)",
-        pointerEvents: "none"
-      }} />
+    <div className="auth-page-root select-none">
+      {/* Main Structural Frame */}
+      <div className="auth-double-bezel-outer">
+        {/* Inner Core: Asymmetric Split Grid */}
+        <div className="auth-double-bezel-inner">
+          {/* Left Hero Column: Institutional Trust & Brand Showcase */}
+          <div className="auth-hero-pane">
+            {/* Top Identity Block */}
+            <div>
+              <div className="auth-eyebrow-tag">
+                <ShieldCheck size={13} className="text-emerald-300" />
+                <span>Portal Resmi Kepegawaian</span>
+              </div>
 
-      {/* Main Container Card */}
-      <div style={{
-        maxWidth: activeTab === "register" ? "520px" : "440px",
-        width: "100%",
-        background: "rgba(255, 255, 255, 0.98)",
-        borderRadius: "16px",
-        boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.45)",
-        border: "1px solid rgba(255, 255, 255, 0.2)",
-        overflow: "hidden",
-        position: "relative",
-        zIndex: 1,
-        transition: "max-width 0.25s ease"
-      }}>
-        {/* Header Branding */}
-        <div style={{
-          background: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)",
-          padding: "1.75rem 1.5rem 1.5rem 1.5rem",
-          color: "#ffffff",
-          textAlign: "center"
-        }}>
-          <div style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: "52px",
-            height: "52px",
-            borderRadius: "14px",
-            background: "rgba(255, 255, 255, 0.15)",
-            backdropFilter: "blur(10px)",
-            boxShadow: "0 4px 15px rgba(0, 0, 0, 0.15)",
-            marginBottom: "0.85rem"
-          }}>
-            <Sparkles size={26} style={{ color: "#fbbf24" }} />
-          </div>
-
-          <h1 style={{ 
-            fontSize: "1.45rem", 
-            fontWeight: "800", 
-            letterSpacing: "-0.02em", 
-            margin: "0 0 0.35rem 0",
-            textShadow: "0 2px 4px rgba(0,0,0,0.15)"
-          }}>
-            E-KINERJA AI
-          </h1>
-          <p style={{ 
-            fontSize: "0.83rem", 
-            margin: 0, 
-            opacity: 0.9, 
-            fontWeight: "500",
-            lineHeight: "1.4"
-          }}>
-            Portal Laporan Kinerja Harian &amp; Bulanan Pegawai ASN
-          </p>
-
-          {/* Tab Switcher: Masuk vs Registrasi */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            background: "rgba(15, 23, 42, 0.25)",
-            padding: "4px",
-            borderRadius: "10px",
-            marginTop: "1.25rem",
-            backdropFilter: "blur(4px)"
-          }}>
-            <button
-              type="button"
-              onClick={() => switchTab("login")}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "0.45rem",
-                padding: "0.55rem",
-                borderRadius: "7px",
-                border: "none",
-                fontSize: "0.84rem",
-                fontWeight: "700",
-                cursor: "pointer",
-                transition: "all 0.15s ease",
-                background: activeTab === "login" ? "#ffffff" : "transparent",
-                color: activeTab === "login" ? "#1e3a8a" : "#e2e8f0",
-                boxShadow: activeTab === "login" ? "0 2px 6px rgba(0,0,0,0.15)" : "none"
-              }}
-            >
-              <LogIn size={15} />
-              <span>Masuk (Login)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => switchTab("register")}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "0.45rem",
-                padding: "0.55rem",
-                borderRadius: "7px",
-                border: "none",
-                fontSize: "0.84rem",
-                fontWeight: "700",
-                cursor: "pointer",
-                transition: "all 0.15s ease",
-                background: activeTab === "register" ? "#ffffff" : "transparent",
-                color: activeTab === "register" ? "#1e3a8a" : "#e2e8f0",
-                boxShadow: activeTab === "register" ? "0 2px 6px rgba(0,0,0,0.15)" : "none"
-              }}
-            >
-              <UserPlus size={15} />
-              <span>Daftar Akun Baru</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Form Body */}
-        <div style={{ padding: "1.5rem" }}>
-          {errorMsg && (
-            <div style={{
-              background: "#fef2f2",
-              border: "1px solid #fecaca",
-              color: "#b91c1c",
-              padding: "0.75rem 1rem",
-              borderRadius: "8px",
-              fontSize: "0.84rem",
-              marginBottom: "1.25rem",
-              display: "flex",
-              alignItems: "flex-start",
-              gap: "0.5rem",
-              lineHeight: "1.4"
-            }}>
-              <AlertCircle size={16} style={{ flexShrink: 0, marginTop: "2px" }} />
-              <div>{errorMsg}</div>
-            </div>
-          )}
-
-          {successMsg && (
-            <div style={{
-              background: "#ecfdf5",
-              border: "1px solid #a7f3d0",
-              color: "#065f46",
-              padding: "0.75rem 1rem",
-              borderRadius: "8px",
-              fontSize: "0.84rem",
-              marginBottom: "1.25rem",
-              display: "flex",
-              alignItems: "flex-start",
-              gap: "0.5rem",
-              lineHeight: "1.4"
-            }}>
-              <CheckCircle2 size={16} style={{ flexShrink: 0, marginTop: "2px" }} />
-              <div>{successMsg}</div>
-            </div>
-          )}
-
-          {/* TAB 1: FORM LOGIN */}
-          {activeTab === "login" && (
-            <form onSubmit={handleLoginSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}>
-              <div>
-                <label style={{ 
-                  display: "block", 
-                  fontSize: "0.82rem", 
-                  fontWeight: "700", 
-                  color: "#1e293b", 
-                  marginBottom: "0.4rem" 
-                }}>
-                  Username Pegawai / Admin
-                </label>
-                <div style={{ position: "relative" }}>
-                  <User 
-                    size={17} 
-                    style={{ 
-                      position: "absolute", 
-                      left: "12px", 
-                      top: "50%", 
-                      transform: "translateY(-50%)", 
-                      color: "#94a3b8" 
-                    }} 
-                  />
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Masukkan username Anda..."
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem 0.85rem 0.75rem 2.4rem",
-                      borderRadius: "8px",
-                      border: "1.5px solid #cbd5e1",
-                      fontSize: "0.9rem",
-                      color: "#0f172a",
-                      background: "#ffffff",
-                      boxSizing: "border-box",
-                      outline: "none",
-                      transition: "border-color 0.15s ease"
-                    }}
-                    onFocus={(e) => e.target.style.borderColor = "#2563eb"}
-                    onBlur={(e) => e.target.style.borderColor = "#cbd5e1"}
-                    autoFocus
-                    required
-                  />
+              <div className="auth-hero-brand">
+                <div 
+                  className="auth-hero-logo"
+                  style={{
+                    overflow: "hidden",
+                    background: schoolLogo ? "rgba(255, 255, 255, 0.08)" : undefined,
+                    border: schoolLogo ? "1px solid rgba(255, 255, 255, 0.2)" : undefined
+                  }}
+                >
+                  {schoolLogo ? (
+                    <img 
+                      src={schoolLogo} 
+                      alt="Logo Instansi" 
+                      style={{ width: "100%", height: "100%", objectFit: "contain", padding: "4px" }} 
+                    />
+                  ) : (
+                    <School size={24} />
+                  )}
+                </div>
+                <div>
+                  <div className="auth-hero-subtitle">
+                    Sistem Terintegrasi
+                  </div>
+                  <h1 className="auth-hero-title">
+                    {schoolName}
+                  </h1>
                 </div>
               </div>
 
-              <div>
-                <label style={{ 
-                  display: "block", 
-                  fontSize: "0.82rem", 
-                  fontWeight: "700", 
-                  color: "#1e293b", 
-                  marginBottom: "0.4rem" 
-                }}>
-                  Password
-                </label>
-                <div style={{ position: "relative" }}>
-                  <Key 
-                    size={17} 
-                    style={{ 
-                      position: "absolute", 
-                      left: "12px", 
-                      top: "50%", 
-                      transform: "translateY(-50%)", 
-                      color: "#94a3b8" 
-                    }} 
-                  />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Masukkan password akun..."
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem 2.6rem 0.75rem 2.4rem",
-                      borderRadius: "8px",
-                      border: "1.5px solid #cbd5e1",
-                      fontSize: "0.9rem",
-                      color: "#0f172a",
-                      background: "#ffffff",
-                      boxSizing: "border-box",
-                      outline: "none",
-                      transition: "border-color 0.15s ease"
-                    }}
-                    onFocus={(e) => e.target.style.borderColor = "#2563eb"}
-                    onBlur={(e) => e.target.style.borderColor = "#cbd5e1"}
-                    required
-                  />
+              <p className="auth-hero-lead">
+                Platform pencatatan logbook kinerja harian, poles narasi SKP dengan kecerdasan buatan, dan generator laporan bulanan otomatis bagi Tenaga Pendidik &amp; Kependidikan.
+              </p>
+
+              {/* Value Highlight Items */}
+              <div className="auth-feature-list">
+                <div className="auth-feature-card">
+                  <div className="auth-feature-icon-box">
+                    <FileCheck2 size={16} />
+                  </div>
+                  <div>
+                    <div className="auth-feature-title">Format e-Kinerja BKN</div>
+                    <div className="auth-feature-text">
+                      Sesuai standar PermenPAN-RB No. 6 Tahun 2022.
+                    </div>
+                  </div>
+                </div>
+
+                <div className="auth-feature-card">
+                  <div className="auth-feature-icon-box">
+                    <Cpu size={16} />
+                  </div>
+                  <div>
+                    <div className="auth-feature-title">Poles Bahasa Baku</div>
+                    <div className="auth-feature-text">
+                      Transformasi catatan harian menjadi kalimat formal kedinasan.
+                    </div>
+                  </div>
+                </div>
+
+                <div className="auth-feature-card">
+                  <div className="auth-feature-icon-box">
+                    <BadgeCheck size={16} />
+                  </div>
+                  <div>
+                    <div className="auth-feature-title">Autentikasi Terproteksi</div>
+                    <div className="auth-feature-text">
+                      Pendaftaran khusus internal instansi via Kode Undangan.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Seal / Footnote */}
+            <div className="auth-hero-footnote">
+              <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                <Lock size={12} />
+                <span>Enkripsi Sesi 24 Jam</span>
+              </div>
+              <div>Edisi 2026</div>
+            </div>
+          </div>
+
+          {/* Right Form Column: Elevated Double-Bezel Card Inner Core */}
+          <div className="auth-form-pane">
+            <div>
+              {/* Header Tab Switcher (Segmented Control) */}
+              <div className="auth-header-row">
+                <div>
+                  <h2 className="auth-form-title">
+                    {activeTab === "login" ? "Selamat Datang" : "Registrasi Pegawai"}
+                  </h2>
+                  <div className="auth-form-desc">
+                    {activeTab === "login" 
+                      ? "Silakan masukkan username dan password Anda untuk masuk." 
+                      : "Daftarkan akun baru menggunakan kode undangan dari administrator."}
+                  </div>
+                </div>
+
+                {/* Segmented Control Buttons */}
+                <div className="auth-segment-switch">
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    style={{
-                      position: "absolute",
-                      right: "10px",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      color: "#64748b",
-                      padding: "4px"
-                    }}
-                    title={showPassword ? "Sembunyikan password" : "Lihat password"}
+                    onClick={() => switchTab("login")}
+                    className={`auth-segment-btn ${activeTab === "login" ? "active" : ""}`}
                   >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    Masuk
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => switchTab("register")}
+                    className={`auth-segment-btn ${activeTab === "register" ? "active" : ""}`}
+                  >
+                    Daftar
                   </button>
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                style={{
-                  background: "linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%)",
-                  color: "#ffffff",
-                  border: "none",
-                  borderRadius: "8px",
-                  padding: "0.85rem",
-                  fontSize: "0.92rem",
-                  fontWeight: "700",
-                  cursor: isLoading ? "wait" : "pointer",
+              {/* Alert Feedback Messages */}
+              {errorMsg && (
+                <div style={{
+                  background: "#fef2f2",
+                  border: "1px solid #fecaca",
+                  color: "#b91c1c",
+                  padding: "0.75rem 1rem",
+                  borderRadius: "12px",
+                  fontSize: "0.82rem",
+                  marginBottom: "1.25rem",
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  alignItems: "flex-start",
                   gap: "0.5rem",
-                  boxShadow: "0 4px 12px rgba(37, 99, 235, 0.35)",
-                  marginTop: "0.5rem",
-                  transition: "transform 0.1s ease, box-shadow 0.15s ease"
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
-                onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
-              >
-                <LogIn size={17} />
-                <span>{isLoading ? "Memverifikasi Akun..." : "Masuk ke Sistem"}</span>
-              </button>
-            </form>
-          )}
+                  lineHeight: "1.4"
+                }}>
+                  <AlertCircle size={16} style={{ flexShrink: 0, marginTop: "2px" }} />
+                  <div>{errorMsg}</div>
+                </div>
+              )}
 
-          {/* TAB 2: FORM REGISTRASI DENGAN KODE UNDANGAN */}
-          {activeTab === "register" && (
-            <form onSubmit={handleRegisterSubmit} style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
-              {/* Field 1: Kode Registrasi (Wajib) */}
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.35rem" }}>
-                  <label style={{ fontSize: "0.82rem", fontWeight: "700", color: "#1e293b" }}>
-                    Kode Registrasi / Undangan <span style={{ color: "#dc2626" }}>*</span>
-                  </label>
-                  <span style={{ fontSize: "0.72rem", color: "#64748b" }}>Wajib dari Admin</span>
+              {successMsg && (
+                <div style={{
+                  background: "#ecfdf5",
+                  border: "1px solid #a7f3d0",
+                  color: "#065f46",
+                  padding: "0.75rem 1rem",
+                  borderRadius: "12px",
+                  fontSize: "0.82rem",
+                  marginBottom: "1.25rem",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "0.5rem",
+                  lineHeight: "1.4"
+                }}>
+                  <CheckCircle2 size={16} style={{ flexShrink: 0, marginTop: "2px" }} />
+                  <div>{successMsg}</div>
                 </div>
-                <div style={{ position: "relative" }}>
-                  <Ticket 
-                    size={17} 
-                    style={{ 
-                      position: "absolute", 
-                      left: "12px", 
-                      top: "50%", 
-                      transform: "translateY(-50%)", 
-                      color: "#2563eb" 
-                    }} 
-                  />
-                  <input
-                    type="text"
-                    value={regCode}
-                    onChange={(e) => setRegCode(e.target.value.toUpperCase())}
-                    placeholder="Contoh: EKIN-AB12CD"
-                    style={{
-                      width: "100%",
-                      padding: "0.7rem 0.85rem 0.7rem 2.4rem",
-                      borderRadius: "8px",
-                      border: "1.5px solid #93c5fd",
-                      background: "#eff6ff",
-                      fontSize: "0.92rem",
-                      fontWeight: "700",
-                      letterSpacing: "0.05em",
-                      color: "#1e3a8a",
-                      boxSizing: "border-box",
-                      outline: "none",
-                      textTransform: "uppercase"
-                    }}
-                    required
-                  />
-                </div>
-                <div style={{ fontSize: "0.7rem", color: "#64748b", marginTop: "4px" }}>
-                  Hanya pengguna dengan kode resmi yang dapat mendaftarkan akun baru.
-                </div>
-              </div>
+              )}
 
-              {/* Field 2 & 3: Nama Lengkap & NIP */}
-              <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "0.75rem" }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.8rem", fontWeight: "700", color: "#1e293b", marginBottom: "0.35rem" }}>
-                    Nama Lengkap &amp; Gelar <span style={{ color: "#dc2626" }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={regNama}
-                    onChange={(e) => setRegNama(e.target.value)}
-                    placeholder="Dr. Ir. Budi Santoso"
-                    style={{
-                      width: "100%",
-                      padding: "0.65rem 0.8rem",
-                      borderRadius: "8px",
-                      border: "1.5px solid #cbd5e1",
-                      fontSize: "0.85rem",
-                      boxSizing: "border-box"
-                    }}
-                    required
-                  />
-                </div>
+              {/* TAB 1: FORM LOGIN */}
+              {activeTab === "login" && (
+                <form onSubmit={handleLoginSubmit} className="auth-form">
+                  {/* Field: Username */}
+                  <div className="auth-form-group">
+                    <label className="auth-label">
+                      Username Pegawai / Admin
+                    </label>
+                    <div className="auth-input-wrapper">
+                      <div className="auth-input-icon">
+                        <User size={16} />
+                      </div>
+                      <input
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        placeholder="Masukkan username Anda..."
+                        className="auth-input"
+                        autoFocus
+                        required
+                      />
+                    </div>
+                  </div>
 
-                <div>
-                  <label style={{ display: "block", fontSize: "0.8rem", fontWeight: "700", color: "#1e293b", marginBottom: "0.35rem" }}>
-                    NIP Pegawai <span style={{ color: "#dc2626" }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={regNip}
-                    onChange={(e) => setRegNip(e.target.value)}
-                    placeholder="198507... atau -"
-                    style={{
-                      width: "100%",
-                      padding: "0.65rem 0.8rem",
-                      borderRadius: "8px",
-                      border: "1.5px solid #cbd5e1",
-                      fontSize: "0.85rem",
-                      boxSizing: "border-box"
-                    }}
-                    required
-                  />
-                </div>
-              </div>
+                  {/* Field: Password */}
+                  <div className="auth-form-group">
+                    <div className="auth-label-row">
+                      <label className="auth-label">
+                        Kata Sandi
+                      </label>
+                      <span className="auth-label-sub">
+                        Min. 4 Karakter
+                      </span>
+                    </div>
+                    <div className="auth-input-wrapper">
+                      <div className="auth-input-icon">
+                        <Key size={16} />
+                      </div>
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Masukkan password Anda..."
+                        className="auth-input"
+                        style={{ paddingRight: "2.6rem" }}
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="auth-eye-btn"
+                        title={showPassword ? "Sembunyikan password" : "Lihat password"}
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
 
-              {/* Field 4: Username */}
-              <div>
-                <label style={{ display: "block", fontSize: "0.8rem", fontWeight: "700", color: "#1e293b", marginBottom: "0.35rem" }}>
-                  Username Baru <span style={{ color: "#dc2626" }}>*</span>
-                </label>
-                <div style={{ position: "relative" }}>
-                  <User size={15} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
-                  <input
-                    type="text"
-                    value={regUsername}
-                    onChange={(e) => setRegUsername(e.target.value)}
-                    placeholder="budi_santoso"
-                    style={{
-                      width: "100%",
-                      padding: "0.65rem 0.8rem 0.65rem 2.2rem",
-                      borderRadius: "8px",
-                      border: "1.5px solid #cbd5e1",
-                      fontSize: "0.85rem",
-                      boxSizing: "border-box"
-                    }}
-                    required
-                  />
-                </div>
-              </div>
+                  {/* Remember Me Toggle */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: "0.25rem" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.45rem", cursor: "pointer", fontSize: "0.78rem", color: "var(--text-secondary)" }}>
+                      <input
+                        type="checkbox"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        style={{ accentColor: "#34634b", width: "15px", height: "15px" }}
+                      />
+                      <span>Ingat sesi akun ini (24 jam)</span>
+                    </label>
 
-              {/* Field 5 & 6: Password & Konfirmasi Password */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-                <div>
-                  <label style={{ display: "block", fontSize: "0.8rem", fontWeight: "700", color: "#1e293b", marginBottom: "0.35rem" }}>
-                    Password <span style={{ color: "#dc2626" }}>*</span>
-                  </label>
-                  <div style={{ position: "relative" }}>
-                    <input
-                      type={showRegPassword ? "text" : "password"}
-                      value={regPassword}
-                      onChange={(e) => setRegPassword(e.target.value)}
-                      placeholder="Min 4 karakter"
-                      style={{
-                        width: "100%",
-                        padding: "0.65rem 2.2rem 0.65rem 0.8rem",
-                        borderRadius: "8px",
-                        border: "1.5px solid #cbd5e1",
-                        fontSize: "0.85rem",
-                        boxSizing: "border-box"
-                      }}
-                      required
-                    />
                     <button
                       type="button"
-                      onClick={() => setShowRegPassword(!showRegPassword)}
+                      onClick={() => switchTab("register")}
+                      style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.78rem", color: "#34634b", fontWeight: "700" }}
+                    >
+                      Belum punya akun?
+                    </button>
+                  </div>
+
+                  {/* Submit Button with Island Icon Pattern */}
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="auth-cta-button"
+                  >
+                    <span>{isLoading ? "Memverifikasi Kredensial..." : "Masuk ke Sistem Kinerja"}</span>
+                    <div className="auth-button-island-icon">
+                      <ArrowRight size={15} />
+                    </div>
+                  </button>
+
+                  {/* SSO OIDC Login Option (Zitadel) */}
+                  {ssoConfig?.enabled && (
+                    <div style={{ marginTop: "0.5rem" }}>
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.75rem",
+                        margin: "1rem 0 0.85rem 0",
+                        color: "var(--text-muted, #94a3b8)",
+                        fontSize: "0.74rem"
+                      }}>
+                        <div style={{ flex: 1, height: "1px", background: "var(--border-subtle, #e2e8f0)" }} />
+                        <span style={{ fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.05em" }}>atau opsi terintegrasi</span>
+                        <div style={{ flex: 1, height: "1px", background: "var(--border-subtle, #e2e8f0)" }} />
+                      </div>
+
+                      <a
+                        href="/api/auth/sso/zitadel/login"
+                        className="auth-sso-button"
+                        style={{
+                          width: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "0.7rem 0.85rem 0.7rem 1.25rem",
+                          borderRadius: "8px",
+                          background: "#ffffff",
+                          border: "1px solid #cbdcd2",
+                          color: "#1e293b",
+                          fontSize: "0.85rem",
+                          fontWeight: "700",
+                          textDecoration: "none",
+                          boxSizing: "border-box",
+                          transition: "all 0.15s ease"
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                          <ShieldCheck size={17} style={{ color: "#244937" }} />
+                          <span>{ssoConfig.buttonText || "Masuk dengan SSO"}</span>
+                        </div>
+                        <div style={{
+                          width: "30px",
+                          height: "30px",
+                          borderRadius: "6px",
+                          background: "#f1f5f3",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#244937"
+                        }}>
+                          <ArrowRight size={14} />
+                        </div>
+                      </a>
+                    </div>
+                  )}
+                </form>
+              )}
+
+              {/* TAB 2: FORM REGISTRASI ATAU PEMBERITAHUAN REGISTRASI TERTUTUP */}
+              {activeTab === "register" && ssoConfig?.registrationMode === "closed" ? (
+                <div style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "1.25rem",
+                  padding: "0.5rem 0"
+                }}>
+                  <div style={{
+                    padding: "1.25rem",
+                    borderRadius: "12px",
+                    background: "#fef2f2",
+                    border: "1px solid #fecaca",
+                    color: "#991b1b"
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: "700", fontSize: "0.92rem", marginBottom: "0.4rem" }}>
+                      <AlertCircle size={18} style={{ color: "#dc2626" }} />
+                      <span>Registrasi Mandiri Ditutup</span>
+                    </div>
+                    <p style={{ fontSize: "0.84rem", lineHeight: "1.5", margin: 0, color: "#7f1d1d" }}>
+                      {ssoConfig.closedRegistrationMessage || "Pendaftaran akun baru saat ini ditutup untuk umum. Pegawai & GTK dipersilakan melakukan pendaftaran atau pemutakhiran data melalui portal registrasi resmi instansi berikut:"}
+                    </p>
+                  </div>
+
+                  {ssoConfig.closedRegistrationUrl ? (
+                    <a
+                      href={ssoConfig.closedRegistrationUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="auth-cta-button"
                       style={{
-                        position: "absolute",
-                        right: "8px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        color: "#64748b"
+                        textDecoration: "none",
+                        background: "#1e3a8a",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between"
                       }}
                     >
-                      {showRegPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                      <span>Menuju Portal Registrasi Resmi</span>
+                      <div className="auth-button-island-icon">
+                        <ArrowRight size={15} />
+                      </div>
+                    </a>
+                  ) : (
+                    <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", textAlign: "center" }}>
+                      Silakan hubungi Administrator Kepegawaian instansi untuk informasi pendaftaran akun.
+                    </div>
+                  )}
+
+                  <div style={{ textAlign: "center", marginTop: "0.5rem" }}>
+                    <button
+                      type="button"
+                      onClick={() => switchTab("login")}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "#34634b",
+                        fontSize: "0.82rem",
+                        fontWeight: "700",
+                        cursor: "pointer"
+                      }}
+                    >
+                      &larr; Kembali ke Formulir Masuk
                     </button>
                   </div>
                 </div>
+              ) : activeTab === "register" && (
+                <form onSubmit={handleRegisterSubmit} className="auth-form">
+                  {/* Field: Kode Registrasi (Wajib) */}
+                  <div className="auth-form-group">
+                    <div className="auth-label-row">
+                      <label className="auth-label" style={{ color: "#1e3a8a" }}>
+                        Kode Undangan Registrasi <span style={{ color: "#dc2626" }}>*</span>
+                      </label>
+                      <span style={{ fontSize: "0.7rem", color: "#1e40af", fontWeight: "700", background: "#dbeafe", padding: "0.15rem 0.45rem", borderRadius: "6px" }}>
+                        Wajib dari Superadmin
+                      </span>
+                    </div>
+                    <div className="auth-input-wrapper">
+                      <div className="auth-input-icon">
+                        <Ticket size={16} style={{ color: "#2563eb" }} />
+                      </div>
+                      <input
+                        type="text"
+                        value={regCode}
+                        onChange={(e) => setRegCode(e.target.value.toUpperCase())}
+                        placeholder="Contoh: EKIN-AB12CD"
+                        className="auth-input auth-input-code"
+                        required
+                      />
+                    </div>
+                  </div>
 
-                <div>
-                  <label style={{ display: "block", fontSize: "0.8rem", fontWeight: "700", color: "#1e293b", marginBottom: "0.35rem" }}>
-                    Konfirmasi Password <span style={{ color: "#dc2626" }}>*</span>
-                  </label>
-                  <input
-                    type={showRegPassword ? "text" : "password"}
-                    value={regConfirmPassword}
-                    onChange={(e) => setRegConfirmPassword(e.target.value)}
-                    placeholder="Ulangi password"
-                    style={{
-                      width: "100%",
-                      padding: "0.65rem 0.8rem",
-                      borderRadius: "8px",
-                      border: "1.5px solid #cbd5e1",
-                      fontSize: "0.85rem",
-                      boxSizing: "border-box"
-                    }}
-                    required
-                  />
-                </div>
-              </div>
+                  {/* Grid 2 Kolom: Nama Lengkap & NIP */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: "0.75rem" }}>
+                    <div className="auth-form-group">
+                      <label className="auth-label">
+                        Nama Lengkap <span style={{ color: "#dc2626" }}>*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={regNama}
+                        onChange={(e) => setRegNama(e.target.value)}
+                        placeholder="Dr. Ir. Budi Santoso"
+                        className="auth-input"
+                        style={{ paddingLeft: "1rem" }}
+                        required
+                      />
+                    </div>
+                    <div className="auth-form-group">
+                      <label className="auth-label">
+                        NIP Pegawai <span style={{ color: "#dc2626" }}>*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={regNip}
+                        onChange={(e) => setRegNip(e.target.value)}
+                        placeholder="198507... atau -"
+                        className="auth-input"
+                        style={{ paddingLeft: "1rem" }}
+                        required
+                      />
+                    </div>
+                  </div>
 
-              {/* Data Kedinasan Tambahan (Opsional) */}
-              <div style={{
-                background: "#f8fafc",
-                borderRadius: "8px",
-                padding: "0.75rem",
-                border: "1px solid #e2e8f0",
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.6rem"
-              }}>
-                <div style={{ fontSize: "0.75rem", fontWeight: "700", color: "#475569" }}>
-                  Data Kedinasan Tambahan (Bisa diisi sekarang atau nanti):
-                </div>
+                  {/* Field: Username */}
+                  <div className="auth-form-group">
+                    <label className="auth-label">
+                      Username Baru <span style={{ color: "#dc2626" }}>*</span>
+                    </label>
+                    <div className="auth-input-wrapper">
+                      <div className="auth-input-icon">
+                        <User size={15} />
+                      </div>
+                      <input
+                        type="text"
+                        value={regUsername}
+                        onChange={(e) => setRegUsername(e.target.value)}
+                        placeholder="budi_santoso"
+                        className="auth-input"
+                        required
+                      />
+                    </div>
+                  </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-                  <div>
+                  {/* Grid 2 Kolom: Password & Konfirmasi */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                    <div className="auth-form-group">
+                      <label className="auth-label">
+                        Password <span style={{ color: "#dc2626" }}>*</span>
+                      </label>
+                      <div className="auth-input-wrapper">
+                        <input
+                          type={showRegPassword ? "text" : "password"}
+                          value={regPassword}
+                          onChange={(e) => setRegPassword(e.target.value)}
+                          placeholder="Min 4 karakter"
+                          className="auth-input"
+                          style={{ paddingLeft: "1rem", paddingRight: "2.2rem" }}
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowRegPassword(!showRegPassword)}
+                          className="auth-eye-btn"
+                        >
+                          {showRegPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="auth-form-group">
+                      <label className="auth-label">
+                        Konfirmasi <span style={{ color: "#dc2626" }}>*</span>
+                      </label>
+                      <input
+                        type={showRegPassword ? "text" : "password"}
+                        value={regConfirmPassword}
+                        onChange={(e) => setRegConfirmPassword(e.target.value)}
+                        placeholder="Ulangi password"
+                        className="auth-input"
+                        style={{ paddingLeft: "1rem" }}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Data Kedinasan Tambahan (Collapsible/Soft Container) */}
+                  <div style={{
+                    padding: "0.75rem",
+                    borderRadius: "12px",
+                    background: "var(--bg-tertiary, #f8fafc)",
+                    border: "1px solid var(--border-subtle, #e2e8f0)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.5rem"
+                  }}>
+                    <div style={{ fontSize: "0.72rem", fontWeight: "700", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                      Informasi Kedinasan (Opsional):
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                      <input
+                        type="text"
+                        value={regPangkat}
+                        onChange={(e) => setRegPangkat(e.target.value)}
+                        placeholder="Pangkat / Golongan"
+                        className="auth-input"
+                        style={{ padding: "0.5rem 0.75rem", fontSize: "0.78rem" }}
+                      />
+                      <input
+                        type="text"
+                        value={regJabatan}
+                        onChange={(e) => setRegJabatan(e.target.value)}
+                        placeholder="Jabatan Kedinasan"
+                        className="auth-input"
+                        style={{ padding: "0.5rem 0.75rem", fontSize: "0.78rem" }}
+                      />
+                    </div>
                     <input
                       type="text"
-                      value={regPangkat}
-                      onChange={(e) => setRegPangkat(e.target.value)}
-                      placeholder="Pangkat (contoh: Penata Muda / III/a)"
-                      style={{
-                        width: "100%",
-                        padding: "0.55rem 0.7rem",
-                        borderRadius: "6px",
-                        border: "1px solid #cbd5e1",
-                        fontSize: "0.78rem",
-                        boxSizing: "border-box"
-                      }}
+                      value={regUnitKerja}
+                      onChange={(e) => setRegUnitKerja(e.target.value)}
+                      placeholder={`Unit Kerja (misal: ${schoolName})`}
+                      className="auth-input"
+                      style={{ padding: "0.5rem 0.75rem", fontSize: "0.78rem" }}
                     />
                   </div>
-                  <div>
-                    <input
-                      type="text"
-                      value={regJabatan}
-                      onChange={(e) => setRegJabatan(e.target.value)}
-                      placeholder="Jabatan (contoh: Pranata Komputer)"
-                      style={{
-                        width: "100%",
-                        padding: "0.55rem 0.7rem",
-                        borderRadius: "6px",
-                        border: "1px solid #cbd5e1",
-                        fontSize: "0.78rem",
-                        boxSizing: "border-box"
-                      }}
-                    />
-                  </div>
-                </div>
 
-                <div>
-                  <input
-                    type="text"
-                    value={regUnitKerja}
-                    onChange={(e) => setRegUnitKerja(e.target.value)}
-                    placeholder="Unit Kerja (contoh: SMK N 07 SAMARINDA)"
-                    style={{
-                      width: "100%",
-                      padding: "0.55rem 0.7rem",
-                      borderRadius: "6px",
-                      border: "1px solid #cbd5e1",
-                      fontSize: "0.78rem",
-                      boxSizing: "border-box"
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isLoading}
-                style={{
-                  background: "linear-gradient(135deg, #059669 0%, #10b981 100%)",
-                  color: "#ffffff",
-                  border: "none",
-                  borderRadius: "8px",
-                  padding: "0.85rem",
-                  fontSize: "0.92rem",
-                  fontWeight: "700",
-                  cursor: isLoading ? "wait" : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.5rem",
-                  boxShadow: "0 4px 12px rgba(16, 185, 129, 0.35)",
-                  marginTop: "0.4rem",
-                  transition: "transform 0.1s ease, box-shadow 0.15s ease"
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
-                onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}
-              >
-                <UserPlus size={17} />
-                <span>{isLoading ? "Mendaftarkan Akun..." : "Daftar & Masuk Sekarang"}</span>
-              </button>
-            </form>
-          )}
-
-          {/* Footer Security Note */}
-          <div style={{
-            marginTop: "1.5rem",
-            paddingTop: "1.2rem",
-            borderTop: "1px solid #f1f5f9",
-            textAlign: "center"
-          }}>
-            <div style={{ fontSize: "0.74rem", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.35rem" }}>
-              <ShieldCheck size={14} style={{ color: "#059669" }} />
-              <span>Sistem Terotentikasi &amp; Terproteksi Kode Undangan</span>
+                  {/* Submit Button with Island Icon Pattern */}
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="auth-cta-button"
+                  >
+                    <span>{isLoading ? "Mendaftarkan Akun..." : "Daftar & Masuk Sekarang"}</span>
+                    <div className="auth-button-island-icon">
+                      <UserPlus size={15} />
+                    </div>
+                  </button>
+                </form>
+              )}
             </div>
-            <div style={{ fontSize: "0.7rem", color: "#94a3b8", marginTop: "3px" }}>
-              Belum memiliki kode registrasi? Hubungi Super Administrator instansi Anda.
+
+            {/* Micro Footnote / Help */}
+            <div style={{
+              marginTop: "1.5rem",
+              paddingTop: "1rem",
+              borderTop: "1px solid var(--border-subtle, #f1f5f9)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              fontSize: "0.72rem",
+              color: "var(--text-muted, #94a3b8)"
+            }}>
+              <span>Keamanan Kredensial Terenkripsi</span>
+              <span>{schoolName} &bull; v2.4</span>
             </div>
           </div>
         </div>

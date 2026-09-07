@@ -1,5 +1,6 @@
 import React, { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { AlertCircle } from 'lucide-react'
 import './index.css'
 import App from './App.jsx'
 
@@ -39,7 +40,7 @@ class ErrorBoundary extends React.Component {
             border: "1px solid #e2e8f0",
             textAlign: "center"
           }}>
-            <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>⚠️</div>
+            <AlertCircle size={44} color="#ef4444" style={{ margin: "0 auto 1rem auto" }} />
             <h2 style={{ fontSize: "1.2rem", fontWeight: "700", color: "#0f172a", marginBottom: "0.5rem" }}>
               Terjadi Kendala Memuat Halaman
             </h2>

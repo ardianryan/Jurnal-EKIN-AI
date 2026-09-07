@@ -203,8 +203,8 @@ export default function AiGeneratorBar({
       {/* Action Row */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-            ⚡ <strong>{useOnlineAi && hasGeminiKey ? "Mode: Gemini 2.5 Flash" : "Mode: Mesin Cerdas Offline BKN"}</strong> • Otomatis menyesuaikan 3 Aspek IKI + Bukti Dukung
+          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+            <Zap size={13} style={{ color: "var(--accent-primary)" }} /> <strong>{useOnlineAi && hasGeminiKey ? "Mode: Gemini 2.5 Flash" : "Mode: Mesin Cerdas Offline BKN"}</strong> • Otomatis menyesuaikan 3 Aspek IKI + Bukti Dukung
           </span>
         </div>
 

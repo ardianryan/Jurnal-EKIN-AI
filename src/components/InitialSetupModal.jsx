@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { UserCheck, ShieldAlert, Sparkles, Check, Building2, Briefcase, Award, Hash, User } from "lucide-react";
+import Sheet from "./ui/Sheet";
+import { UserCheck, ShieldAlert, Sparkles, Check, Building2, Briefcase, Award, Hash, User, ShieldCheck, ArrowRight } from "lucide-react";
 import confetti from "canvas-confetti";
-import { saveAccount } from "../services/accountService";
+import { saveAccount, getSchoolName } from "../services/accountService";
 import { getMasterJabatan } from "../services/jabatanService";
 
 const GOLONGAN_OPTIONS = [
@@ -27,12 +28,13 @@ export default function InitialSetupModal({
   onProfileCompleted,
   onLogout 
 }) {
+  const defaultSchool = getSchoolName();
   const [formData, setFormData] = useState({
     nama: "",
     nip: "",
     pangkat: "Penata Muda / III/a",
     jabatan: "",
-    unitKerja: ""
+    unitKerja: defaultSchool
   });
 
   const [errorMessage, setErrorMessage] = useState("");
@@ -43,9 +45,9 @@ export default function InitialSetupModal({
       setFormData({
         nama: currentUser.nama || "",
         nip: currentUser.nip && currentUser.nip !== "-" ? currentUser.nip : "",
-        pangkat: currentUser.pangkat && currentUser.pangkat !== "-" ? currentUser.pangkat : "Pengatur Muda / II/a",
+        pangkat: currentUser.pangkat && currentUser.pangkat !== "-" ? currentUser.pangkat : "Penata Muda / III/a",
         jabatan: currentUser.jabatan && currentUser.jabatan !== "-" ? currentUser.jabatan : "",
-        unitKerja: currentUser.unitKerja && currentUser.unitKerja !== "-" ? currentUser.unitKerja : ""
+        unitKerja: currentUser.unitKerja && currentUser.unitKerja !== "-" ? currentUser.unitKerja : (getSchoolName() || "")
       });
     }
   }, [currentUser]);
@@ -57,7 +59,7 @@ export default function InitialSetupModal({
     setErrorMessage("");
 
     const cleanNama = formData.nama.trim();
-    const cleanNip = formData.nip.trim();
+    const cleanNip = formData.nip.trim().replace(/\D/g, "");
     const cleanJabatan = formData.jabatan.trim();
     const cleanUnitKerja = formData.unitKerja.trim();
 
@@ -71,13 +73,13 @@ export default function InitialSetupModal({
       return;
     }
 
-    if (cleanNip.length < 9) {
-      setErrorMessage("NIP tampaknya terlalu pendek. Pastikan memasukkan NIP resmi Anda.");
+    if (cleanNip.length !== 18) {
+      setErrorMessage(`NIP ASN harus tepat 18 digit angka (saat ini terdeteksi ${cleanNip.length} digit). Harap periksa kembali.`);
       return;
     }
 
     if (!cleanJabatan) {
-      setErrorMessage("Jabatan kedinasan wajib diisi!");
+      setErrorMessage("Jabatan kedinasan wajib diisi atau dipilih dari Master!");
       return;
     }
 
@@ -91,7 +93,7 @@ export default function InitialSetupModal({
         ...currentUser,
         nama: cleanNama,
         nip: cleanNip,
-        pangkat: formData.pangkat || "Pengatur Muda / II/a",
+        pangkat: formData.pangkat || "Penata Muda / III/a",
         jabatan: cleanJabatan,
         unitKerja: cleanUnitKerja
       };
@@ -116,74 +118,52 @@ export default function InitialSetupModal({
     }
   };
 
+  const isFromSso = Boolean(currentUser?.ssoSource || currentUser?.ssoRole);
+
   return (
-    <div 
-      className="no-print"
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(15, 23, 42, 0.85)",
-        backdropFilter: "blur(8px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 10000,
-        padding: "1rem"
-      }}
+    <Sheet
+      isOpen={isOpen}
+      onClose={() => {}}
+      showClose={false}
+      title="Lengkapi Identitas Pegawai Anda"
+      description={`Selamat datang, ${currentUser?.nama || currentUser?.username}! Harap periksa kembali nama lengkap dan lengkapi data kedinasan Anda untuk format laporan resmi:`}
+      size="lg"
     >
-      <div style={{
-        background: "var(--bg-primary, #ffffff)",
-        borderRadius: "var(--radius-lg, 16px)",
-        width: "100%",
-        maxWidth: "560px",
-        boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.35)",
-        border: "1px solid var(--border-subtle, #e2e8f0)",
-        overflow: "hidden"
-      }}>
-        {/* Banner Atas Pengumuman Setup Awal */}
-        <div style={{
-          background: "linear-gradient(135deg, #1e40af 0%, #2563eb 100%)",
-          color: "#ffffff",
-          padding: "1.75rem 2rem",
-          position: "relative"
-        }}>
-          <div style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.4rem",
-            background: "rgba(255, 255, 255, 0.2)",
-            padding: "0.25rem 0.75rem",
-            borderRadius: "20px",
-            fontSize: "0.78rem",
-            fontWeight: "700",
-            marginBottom: "0.5rem"
-          }}>
-            <ShieldAlert size={14} style={{ color: "#fef08a" }} />
-            <span>Setup Wajib Akun Baru</span>
-          </div>
-
-          <h3 style={{ margin: "0 0 0.4rem 0", fontSize: "1.35rem", fontWeight: "800" }}>
-            Lengkapi Identitas Pegawai Anda
-          </h3>
-          <p style={{ margin: 0, fontSize: "0.85rem", opacity: 0.9, lineHeight: "1.5" }}>
-            Selamat datang, <strong>{currentUser?.username}</strong>! Sebelum mulai membuat jurnal harian dan laporan bulanan, mohon lengkapi NIP dan identitas kedinasan Anda di bawah ini:
-          </p>
-        </div>
-
-        {/* Form Lengkapi Profil */}
-        <div style={{ padding: "1.75rem 2rem" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {isFromSso && (
+            <div style={{
+              background: "#f0fdf4",
+              border: "1px solid #bbf7d0",
+              color: "#166534",
+              padding: "0.75rem 1rem",
+              borderRadius: "10px",
+              fontSize: "0.82rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem"
+            }}>
+              <ShieldCheck size={16} className="text-emerald-600" style={{ flexShrink: 0 }} />
+              <div>
+                Akun terverifikasi via <strong>SSO Zitadel ({currentUser.ssoRole || "GTK"})</strong>. Silakan koreksi penulisan nama jika terdapat kekeliruan gelar, serta tentukan Pangkat, Jabatan, dan Satker bertugas.
+              </div>
+            </div>
+          )}
           {errorMessage && (
             <div style={{
               background: "#fef2f2",
-              color: "#991b1b",
               border: "1px solid #fecaca",
+              color: "#991b1b",
               padding: "0.75rem 1rem",
               borderRadius: "8px",
               fontSize: "0.84rem",
               marginBottom: "1.25rem",
-              fontWeight: "600"
+              fontWeight: "600",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem"
             }}>
-              ⚠️ {errorMessage}
+              <ShieldAlert size={16} />
+              <span>{errorMessage}</span>
             </div>
           )}
 
@@ -217,7 +197,7 @@ export default function InitialSetupModal({
               {/* Nama Lengkap */}
               <div className="form-group" style={{ margin: 0 }}>
                 <label className="form-label" style={{ fontWeight: "700", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                  <User size={15} style={{ color: "#2563eb" }} />
+                  <User size={15} style={{ color: "var(--accent-primary)" }} />
                   Nama Lengkap &amp; Gelar <span style={{ color: "#dc2626" }}>*</span>
                 </label>
                 <input
@@ -234,7 +214,7 @@ export default function InitialSetupModal({
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="form-label" style={{ fontWeight: "700", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                    <Hash size={15} style={{ color: "#2563eb" }} />
+                    <Hash size={15} style={{ color: "var(--accent-primary)" }} />
                     NIP Pegawai <span style={{ color: "#dc2626" }}>*</span>
                   </label>
                   <input
@@ -249,7 +229,7 @@ export default function InitialSetupModal({
 
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="form-label" style={{ fontWeight: "700", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                    <Award size={15} style={{ color: "#2563eb" }} />
+                    <Award size={15} style={{ color: "var(--accent-primary)" }} />
                     Pangkat / Golongan
                   </label>
                   <select
@@ -270,7 +250,7 @@ export default function InitialSetupModal({
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="form-label" style={{ fontWeight: "700", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                    <Briefcase size={15} style={{ color: "#2563eb" }} />
+                    <Briefcase size={15} style={{ color: "var(--accent-primary)" }} />
                     Jabatan Kedinasan <span style={{ color: "#dc2626" }}>*</span>
                   </label>
                   <input
@@ -279,7 +259,7 @@ export default function InitialSetupModal({
                     list="setup-jabatan-datalist"
                     value={formData.jabatan}
                     onChange={(e) => setFormData({ ...formData, jabatan: e.target.value })}
-                    placeholder="misal: Pengadministrasi Perkantoran"
+                    placeholder="misal: Guru Ahli Pertama / Pengadministrasi Perkantoran"
                     required
                   />
                   <datalist id="setup-jabatan-datalist">
@@ -291,7 +271,7 @@ export default function InitialSetupModal({
 
                 <div className="form-group" style={{ margin: 0 }}>
                   <label className="form-label" style={{ fontWeight: "700", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                    <Building2 size={15} style={{ color: "#2563eb" }} />
+                    <Building2 size={15} style={{ color: "var(--accent-primary)" }} />
                     Unit Kerja / Sekolah <span style={{ color: "#dc2626" }}>*</span>
                   </label>
                   <input
@@ -299,7 +279,7 @@ export default function InitialSetupModal({
                     className="input-field"
                     value={formData.unitKerja}
                     onChange={(e) => setFormData({ ...formData, unitKerja: e.target.value })}
-                    placeholder="misal: SMK N 07 SAMARINDA"
+                    placeholder="misal: SMAN GARUDA"
                     required
                   />
                 </div>
@@ -345,7 +325,6 @@ export default function InitialSetupModal({
             </form>
           )}
         </div>
-      </div>
-    </div>
+      </Sheet>
   );
 }

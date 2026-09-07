@@ -17,6 +17,15 @@ if (fs.existsSync(".env") && typeof process.loadEnvFile === "function") {
 }
 
 import crypto from "crypto";
+import {
+  isR2Configured,
+  getR2Status,
+  generatePresignedUploadUrl,
+  deleteR2Object,
+  uploadBufferToR2,
+  scanR2ObjectsByYear,
+  cleanupR2ObjectsByYear
+} from "./r2StorageService.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -73,6 +82,12 @@ import {
 } from "./dbStore.js";
 import { generateMonthlyReportPdf, generateMonthlyReportZip } from "./pdfGenerator.js";
 import { initDatabase, loadStoreFromDatabase, getDatabaseHealth, getActiveDbType } from "./dbAdapter.js";
+import { 
+  getZitadelConfig, 
+  buildZitadelAuthorizeUrl, 
+  exchangeZitadelCode, 
+  validateZitadelMetadata 
+} from "./zitadelService.js";
 
 // Rate Limiter Sederhana In-Memory untuk Cegah Brute-Force & DoS
 const rateLimitMap = new Map();
@@ -293,6 +308,17 @@ const server = http.createServer(async (req, res) => {
     req.on("end", () => {
       try {
         const payload = JSON.parse(body || "{}");
+        const store = getStore();
+        if (store.settings?.registrationPolicy?.mode === "closed") {
+          res.statusCode = 403;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ 
+            success: false, 
+            message: "Pendaftaran akun mandiri dinonaktifkan oleh administrator. Silakan hubungi admin atau gunakan tautan pendaftaran resmi." 
+          }));
+          return;
+        }
+
         const result = registerNewUser(payload);
         let session = null;
         if (result.success && result.user) {
@@ -309,6 +335,206 @@ const server = http.createServer(async (req, res) => {
         res.statusCode = 400;
         res.setHeader("Content-Type", "application/json");
         res.end(JSON.stringify({ success: false, message: err.message }));
+      }
+    });
+    return;
+  }
+
+  // --------------------------------------------------------------------------
+  // Endpoint Konfigurasi Publik SSO Zitadel & Kebijakan Registrasi
+  // --------------------------------------------------------------------------
+  if (pathname === "/api/auth/sso/config") {
+    const store = getStore();
+    const config = getZitadelConfig(store.settings || {});
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({
+      enabled: config.enabled,
+      buttonText: config.buttonText,
+      issuer: config.issuer ? "configured" : "",
+      registrationMode: config.registrationMode,
+      closedRegistrationUrl: config.closedRegistrationUrl,
+      closedRegistrationMessage: config.closedRegistrationMessage
+    }));
+    return;
+  }
+
+  // --------------------------------------------------------------------------
+  // Endpoint Mulai Login Zitadel OIDC (/api/auth/sso/zitadel/login)
+  // --------------------------------------------------------------------------
+  if (pathname === "/api/auth/sso/zitadel/login") {
+    try {
+      const store = getStore();
+      const config = getZitadelConfig(store.settings || {});
+      if (!config.enabled) {
+        res.statusCode = 400;
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        res.end("SSO Zitadel belum diaktifkan oleh Administrator.");
+        return;
+      }
+
+      const proto = req.headers["x-forwarded-proto"] || "http";
+      const host = req.headers.host || `localhost:${PORT}`;
+      const redirectUri = `${proto}://${host}/api/auth/sso/zitadel/callback`;
+
+      const { url } = buildZitadelAuthorizeUrl(config, redirectUri);
+      res.statusCode = 302;
+      res.setHeader("Location", url);
+      res.end();
+      return;
+    } catch (err) {
+      console.error("Error initiate Zitadel SSO:", err.message);
+      res.statusCode = 302;
+      res.setHeader("Location", `/#/login?error=${encodeURIComponent("Gagal menginisiasi SSO: " + err.message)}`);
+      res.end();
+      return;
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // Endpoint Callback Zitadel OIDC (/api/auth/sso/zitadel/callback)
+  // Menangkap Code OIDC, Menukarkan Token, dan Validasi Ketat Metadata
+  // --------------------------------------------------------------------------
+  if (pathname === "/api/auth/sso/zitadel/callback") {
+    const code = parsedUrl.searchParams.get("code");
+    const state = parsedUrl.searchParams.get("state");
+    const errorParam = parsedUrl.searchParams.get("error");
+    const errorDesc = parsedUrl.searchParams.get("error_description");
+
+    if (errorParam) {
+      console.warn("Zitadel error callback:", errorParam, errorDesc);
+      res.statusCode = 302;
+      res.setHeader("Location", `/#/login?error=${encodeURIComponent("Anda tidak memiliki akses ke Website ini")}`);
+      res.end();
+      return;
+    }
+
+    if (!code || !state) {
+      res.statusCode = 302;
+      res.setHeader("Location", `/#/login?error=${encodeURIComponent("Kode otorisasi SSO tidak ditemukan.")}`);
+      res.end();
+      return;
+    }
+
+    try {
+      const store = getStore();
+      const config = getZitadelConfig(store.settings || {});
+      const proto = req.headers["x-forwarded-proto"] || "http";
+      const host = req.headers.host || `localhost:${PORT}`;
+      const redirectUri = `${proto}://${host}/api/auth/sso/zitadel/callback`;
+
+      const { userInfo, metadata } = await exchangeZitadelCode(code, state, config, redirectUri);
+
+      // 🛡️ SECURITY GATEKEEPER: Validasi Metadata (Role: guru / tendik & NIP: tepat 18 digit)
+      const validation = validateZitadelMetadata(metadata, userInfo);
+      if (!validation.allowed) {
+        console.warn(`⛔ [Zitadel Access Denied] ${validation.details || validation.reason}. UserInfo:`, userInfo.sub, metadata);
+        res.statusCode = 302;
+        // Tolak dengan pesan wajib: "Anda tidak memiliki akses ke Website ini"
+        res.setHeader("Location", `/#/login?error=${encodeURIComponent("Anda tidak memiliki akses ke Website ini")}`);
+        res.end();
+        return;
+      }
+
+      // Metadata Lolos Verifikasi!
+      // Cari atau buat akun di database
+      const accounts = store.accounts || [];
+      const userNip = validation.nip;
+      const username = (userInfo.preferred_username || userInfo.email?.split("@")[0] || `pegawai_${userNip.slice(-6)}`).toLowerCase().trim();
+      const namaLengkap = userInfo.name || userInfo.nickname || "Pegawai SSO";
+
+      let existing = accounts.find(a => (a.nip && a.nip === userNip) || a.username === username || (a.ssoUuid && a.ssoUuid === validation.uuid));
+
+      if (existing) {
+        // Update data jika perlu
+        existing.nip = userNip;
+        existing.ssoSource = validation.source;
+        existing.ssoUuid = validation.uuid;
+        existing.ssoRole = validation.role;
+        if (!existing.nama || existing.nama === "Pegawai SSO") {
+          existing.nama = namaLengkap;
+        }
+      } else {
+        // Buat akun baru (karena jabatan, pangkat, satker kosong -> otomatis trigger onboarding kelengkapan profil)
+        existing = {
+          id: "usr-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
+          username,
+          password: "", // akun SSO tidak memakai password lokal
+          nama: namaLengkap,
+          nip: userNip,
+          nik: validation.nik || "",
+          role: "pegawai", // pegawai/ASN
+          ssoRole: validation.role,
+          pangkat: "", // kosong agar memicu onboarding
+          jabatan: "", // kosong agar memicu onboarding
+          unitKerja: "", // kosong agar memicu onboarding
+          ssoSource: validation.source,
+          ssoUuid: validation.uuid,
+          createdAt: new Date().toISOString()
+        };
+        accounts.push(existing);
+      }
+
+      store.accounts = accounts;
+      saveStore(store);
+
+      // Buat Sesi Web
+      const session = createWebSession(existing);
+
+      // Redirect ke frontend membawa token sesi login
+      res.statusCode = 302;
+      res.setHeader("Location", `/#/sso-callback?token=${encodeURIComponent(session.token)}&user=${encodeURIComponent(JSON.stringify(session.user))}`);
+      res.end();
+      return;
+    } catch (err) {
+      console.error("Zitadel callback error:", err);
+      res.statusCode = 302;
+      res.setHeader("Location", `/#/login?error=${encodeURIComponent(err.message || "Gagal memproses login SSO.")}`);
+      res.end();
+      return;
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // Endpoint Simpan Pengaturan SSO & Registrasi (Superadmin Only)
+  // --------------------------------------------------------------------------
+  if (pathname === "/api/settings/sso" && req.method === "POST") {
+    let body = "";
+    req.on("data", chunk => {
+      body += chunk;
+      if (body.length > 50000) req.destroy();
+    });
+    req.on("end", () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const store = getStore();
+        if (!store.settings) store.settings = {};
+
+        if (payload.sso) {
+          store.settings.sso = {
+            ...store.settings.sso,
+            ...payload.sso
+          };
+        }
+        if (payload.registrationPolicy) {
+          store.settings.registrationPolicy = {
+            ...store.settings.registrationPolicy,
+            ...payload.registrationPolicy
+          };
+        }
+
+        saveStore(store);
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ 
+          success: true, 
+          message: "Pengaturan SSO Zitadel & Kebijakan Registrasi berhasil disimpan.",
+          config: getZitadelConfig(store.settings)
+        }));
+      } catch (err) {
+        res.statusCode = 400;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ success: false, message: "Gagal menyimpan konfigurasi: " + err.message }));
       }
     });
     return;
@@ -553,7 +779,7 @@ const server = http.createServer(async (req, res) => {
       body += chunk;
       if (body.length > 50000) req.destroy();
     });
-    req.on("end", () => {
+    req.on("end", async () => {
       try {
         const { fileUrl, filePath, fileName, storedName } = JSON.parse(body);
         const candidates = [];
@@ -567,6 +793,17 @@ const server = http.createServer(async (req, res) => {
         }
 
         let deleted = false;
+
+        // 1. Cek dan hapus dari Cloudflare R2 jika file merupakan URL R2
+        if (fileUrl && (fileUrl.startsWith("http://") || fileUrl.startsWith("https://"))) {
+          const r2Deleted = await deleteR2Object(fileUrl);
+          if (r2Deleted) deleted = true;
+        } else if (storedName && isR2Configured() && !storedName.startsWith("/uploads/")) {
+          const r2Deleted = await deleteR2Object(storedName);
+          if (r2Deleted) deleted = true;
+        }
+
+        // 2. Cek dan hapus dari storage lokal server (database/uploads/)
         for (const fPath of Array.from(new Set(candidates.filter(Boolean)))) {
           try {
             if (fPath.startsWith(UPLOADS_DIR) && fs.existsSync(fPath)) {
@@ -712,6 +949,7 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({
         accounts,
         journals,
+        settings: store.settings || {},
         botConfig: getBotConfig(),
         aiConfig: getAiConfig(),
         timestamp: new Date().toISOString()
@@ -759,6 +997,9 @@ const server = http.createServer(async (req, res) => {
             const jMap = new Map((store.journals || []).map(j => [j.id, j]));
             incoming.journals.forEach(j => jMap.set(j.id, { ...jMap.get(j.id), ...j }));
             store.journals = Array.from(jMap.values());
+          }
+          if (incoming.settings && typeof incoming.settings === "object") {
+            store.settings = { ...(store.settings || {}), ...incoming.settings };
           }
 
           saveStore(store);
@@ -870,7 +1111,137 @@ const server = http.createServer(async (req, res) => {
   }
 
   // --------------------------------------------------------------------------
-  // B. Endpoint Upload Berkas (Web Frontend Upload)
+  // B. Endpoint Presigned URL Upload Cloudflare R2 / S3 Storage (Direct Upload)
+  // Sangat Ringan: Berkas langsung di-PUT oleh browser pengguna ke R2 Object Storage
+  // --------------------------------------------------------------------------
+  if (req.method === "POST" && pathname === "/api/upload/presign") {
+    if (!checkRateLimit(`upload_presign_${clientIp}`, 60, 60000)) {
+      res.statusCode = 429;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ success: false, error: "Terlalu banyak permintaan presign. Silakan tunggu sebentar." }));
+      return;
+    }
+
+    let presignBody = "";
+    req.on("data", chunk => {
+      presignBody += chunk;
+      if (presignBody.length > 50000) req.destroy();
+    });
+
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(presignBody || "{}");
+        const rawFileName = payload.fileName || "dokumen.pdf";
+        const fileType = payload.fileType || "application/octet-stream";
+        const tanggal = payload.tanggal || "";
+
+        const ext = path.extname(rawFileName).toLowerCase();
+        const forbiddenExts = [".exe", ".js", ".mjs", ".sh", ".bat", ".cmd", ".php", ".phtml", ".py", ".html", ".htm", ".svg"];
+        if (forbiddenExts.includes(ext)) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ success: false, error: "Tipe berkas tidak diizinkan demi alasan keamanan." }));
+          return;
+        }
+
+        if (!isR2Configured()) {
+          res.statusCode = 200;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({
+            success: false,
+            mode: "local",
+            message: "Storage Cloudflare R2 belum dikonfigurasi. Gunakan mode unggah server lokal."
+          }));
+          return;
+        }
+
+        const presignResult = await generatePresignedUploadUrl({
+          fileName: rawFileName,
+          fileType,
+          tanggal
+        });
+
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify(presignResult));
+      } catch (err) {
+        res.statusCode = 500;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ success: false, error: "Gagal membuat token presign: " + err.message }));
+      }
+    });
+    return;
+  }
+
+  // Status Storage Cloudflare R2 / S3
+  if (req.method === "GET" && (pathname === "/api/storage/status" || pathname === "/api/upload/status")) {
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify(getR2Status()));
+    return;
+  }
+
+  // Pemindaian Berkas Storage Berdasarkan Pilihan Tahun (Dry Run / Pratinjau)
+  if (req.method === "POST" && pathname === "/api/storage/cleanup/scan") {
+    let body = "";
+    req.on("data", chunk => {
+      body += chunk;
+      if (body.length > 50000) req.destroy();
+    });
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const targetYear = payload.targetYear || (new Date().getFullYear() - 1);
+        const mode = payload.mode || "before_or_equal"; // "exact" atau "before_or_equal"
+
+        const result = await scanR2ObjectsByYear({ targetYear, mode, limit: 200 });
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        res.statusCode = 500;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ success: false, error: "Gagal memindai berkas: " + err.message }));
+      }
+    });
+    return;
+  }
+
+  // Eksekusi Pembersihan Berkas Storage Berdasarkan Pilihan Tahun (Permanen)
+  if (req.method === "POST" && pathname === "/api/storage/cleanup/execute") {
+    let body = "";
+    req.on("data", chunk => {
+      body += chunk;
+      if (body.length > 50000) req.destroy();
+    });
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const targetYear = payload.targetYear;
+        const mode = payload.mode || "before_or_equal";
+
+        if (!targetYear) {
+          res.statusCode = 400;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ success: false, error: "Tahun target wajib dipilih." }));
+          return;
+        }
+
+        const result = await cleanupR2ObjectsByYear({ targetYear, mode });
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        res.statusCode = 500;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ success: false, error: "Gagal mengeksekusi pembersihan: " + err.message }));
+      }
+    });
+    return;
+  }
+
+  // --------------------------------------------------------------------------
+  // C. Endpoint Upload Berkas (Web Frontend Upload - Local Server Fallback)
   // --------------------------------------------------------------------------
   if (req.method === "POST" && pathname === "/api/upload") {
     // Rate Limiting Upload: Maks 30 upload per menit per IP

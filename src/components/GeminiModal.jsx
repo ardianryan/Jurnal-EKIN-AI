@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import Sheet from "./ui/Sheet";
 import { 
   X, 
   Key, 
@@ -87,70 +88,14 @@ export default function GeminiModal({
   };
 
   return (
-    <div 
-      className="modal-overlay" 
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0, 0, 0, 0.65)",
-        backdropFilter: "blur(4px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 9999,
-        padding: "1rem"
-      }}
+    <Sheet
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Pengaturan API Key Gemini AI"
+      description={`Akun: ${currentUser?.nama || currentUser?.username || "Pegawai"} (${currentUser?.role || "pegawai"})`}
+      size="lg"
     >
-      <div 
-        className="modal-content" 
-        onClick={(e) => e.stopPropagation()} 
-        style={{ 
-          maxWidth: "580px",
-          background: "var(--bg-primary, #ffffff)",
-          borderRadius: "var(--radius-lg, 12px)",
-          boxShadow: "var(--shadow-xl)",
-          border: "1px solid var(--border-subtle)",
-          overflow: "hidden"
-        }}
-      >
-        {/* Header Modal */}
-        <div style={{
-          padding: "1.25rem 1.5rem",
-          borderBottom: "1px solid var(--border-subtle)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          background: "var(--bg-secondary)"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-            <div style={{ 
-              width: "38px", 
-              height: "38px", 
-              borderRadius: "8px", 
-              background: "linear-gradient(135deg, #2563eb, #7c3aed)", 
-              color: "#ffffff",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center"
-            }}>
-              <Key size={18} />
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: "800", color: "var(--text-primary)" }}>
-                Pengaturan API Key Gemini AI
-              </h3>
-              <p style={{ margin: "2px 0 0 0", fontSize: "0.78rem", color: "var(--text-muted)" }}>
-                Akun: <strong>{currentUser?.nama || currentUser?.username}</strong> ({currentUser?.role})
-              </p>
-            </div>
-          </div>
-          <button className="btn btn-secondary btn-icon btn-sm" onClick={onClose}>
-            <X size={16} />
-          </button>
-        </div>
-
-        <div style={{ padding: "1.25rem 1.5rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
           
           {/* KHUSUS SUPERADMIN: SETTING TOGGLE IZIN PEMAKAIAN KEY DARI .ENV */}
           {isSuperadmin && (
@@ -254,8 +199,8 @@ export default function GeminiModal({
                   width: "32px",
                   height: "32px",
                   borderRadius: "8px",
-                  background: "rgba(59, 130, 246, 0.15)",
-                  color: "#2563eb",
+                  background: "rgba(52, 99, 75, 0.12)",
+                  color: "var(--accent-primary)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -264,7 +209,7 @@ export default function GeminiModal({
                   <Server size={18} />
                 </div>
                 <div>
-                  <strong style={{ color: "#2563eb" }}>Sistem Menyediakan API Key Bersama (.env):</strong> Akun Anda diizinkan langsung menggunakan fitur AI tanpa perlu repot memasukkan key pribadi. Namun jika kuota sistem sedang bermasalah atau habis, Anda dapat memilih opsi <em>Key Pribadi Akun</em> di bawah.
+                  <strong style={{ color: "var(--accent-primary)" }}>Sistem Menyediakan API Key Bersama (.env):</strong> Akun Anda diizinkan langsung menggunakan fitur AI tanpa perlu repot memasukkan key pribadi. Namun jika kuota sistem sedang bermasalah atau habis, Anda dapat memilih opsi <em>Key Pribadi Akun</em> di bawah.
                 </div>
               </div>
             ) : currentUser?.allowEnvKey === false ? (
@@ -344,8 +289,8 @@ export default function GeminiModal({
                 gap: "0.75rem",
                 padding: "0.85rem 1rem",
                 borderRadius: "8px",
-                border: `1.5px solid ${keyChoice === "env" ? "#2563eb" : "var(--border-subtle)"}`,
-                background: keyChoice === "env" ? "rgba(37, 99, 235, 0.05)" : "var(--bg-secondary)",
+                border: `1.5px solid ${keyChoice === "env" ? "var(--accent-primary)" : "var(--border-subtle)"}`,
+                background: keyChoice === "env" ? "rgba(52, 99, 75, 0.06)" : "var(--bg-secondary)",
                 cursor: (hasEnvKey && isAllowedEnv) ? "pointer" : "not-allowed",
                 opacity: (hasEnvKey && isAllowedEnv) ? 1 : 0.6,
                 transition: "all 0.15s ease"
@@ -358,11 +303,11 @@ export default function GeminiModal({
                 disabled={!(hasEnvKey && isAllowedEnv)}
                 checked={keyChoice === "env"}
                 onChange={() => setKeyChoice("env")}
-                style={{ marginTop: "3px", accentColor: "#2563eb" }}
+                style={{ marginTop: "3px", accentColor: "var(--accent-primary)" }}
               />
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: "700", fontSize: "0.88rem", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
-                  <Server size={14} style={{ color: "#2563eb" }} />
+                  <Server size={14} style={{ color: "var(--accent-primary)" }} />
                   <span>Gunakan AI Bersama dari Sistem (.env)</span>
                   {hasEnvKey && isAllowedEnv ? (
                     <span style={{ fontSize: "0.72rem", background: "#dcfce7", color: "#166534", padding: "1px 6px", borderRadius: "10px", fontWeight: "700" }}>
@@ -491,7 +436,7 @@ export default function GeminiModal({
                     href="https://aistudio.google.com/app/apikey" 
                     target="_blank" 
                     rel="noreferrer"
-                    style={{ fontSize: "0.75rem", color: "#2563eb", fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "3px" }}
+                    style={{ fontSize: "0.75rem", color: "var(--accent-primary)", fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "3px" }}
                   >
                     Dapatkan Key Gratis <ExternalLink size={11} />
                   </a>
@@ -560,7 +505,6 @@ export default function GeminiModal({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }

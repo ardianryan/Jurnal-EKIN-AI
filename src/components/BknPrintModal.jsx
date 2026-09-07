@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Printer, Download } from "lucide-react";
+import { X, Printer, Download, FileText, Camera } from "lucide-react";
 import { triggerPrint } from "../services/exportService";
 import { deriveUkuranKeberhasilan } from "../services/aiService";
 
@@ -328,7 +328,7 @@ export default function BknPrintModal({
                         <td style={{ border: "1px solid #000", padding: "4px" }}>
                           {j.fileName && !isImg ? (
                             <div>
-                              📄{" "}
+                              <FileText size={11} style={{ display: "inline", verticalAlign: "middle", marginRight: "3px" }} />
                               <span className="print-only-text" style={{ display: "none", fontWeight: "bold" }}>
                                 {j.fileName}
                               </span>
@@ -345,7 +345,7 @@ export default function BknPrintModal({
                             </div>
                           ) : isImg ? (
                             <div>
-                              📸{" "}
+                              <Camera size={11} style={{ display: "inline", verticalAlign: "middle", marginRight: "3px" }} />
                               <span className="print-only-text" style={{ display: "none", fontWeight: "bold" }}>
                                 Foto Dokumentasi
                               </span>

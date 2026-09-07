@@ -94,7 +94,24 @@ function resolveSingleAttachmentItem(item, uploadsDir) {
     }
   }
 
-  // 4. Cek fileName di folder uploadsDir
+  // 4. Cek fileUrl / fotoUrl yang berupa URL remote HTTP/HTTPS (Cloudflare R2 / S3 Public CDN)
+  if (typeof urlCandidate === "string" && /^https?:\/\//i.test(urlCandidate)) {
+    const cleanUrl = urlCandidate.split("?")[0].split("#")[0];
+    const ext = path.extname(cleanUrl).toLowerCase() || ".jpg";
+    const isImg = [".jpg", ".jpeg", ".png", ".webp", ".gif"].includes(ext);
+    const bName = path.basename(cleanUrl);
+    return {
+      hasPhysicalFile: true,
+      isRemote: true,
+      type: item.type === "image" || isImg ? "photo" : "document",
+      fileUrl: urlCandidate,
+      remoteUrl: urlCandidate,
+      fileName: item.fileName || bName,
+      ext
+    };
+  }
+
+  // 5. Cek fileName di folder uploadsDir
   if (item.fileName && typeof item.fileName === "string") {
     const candidate = path.join(uploadsDir, path.basename(item.fileName));
     if (fs.existsSync(candidate)) {
@@ -498,7 +515,8 @@ export async function generateMonthlyReportZip({
       .replace(/_+/g, "_")
       .replace(/^_|_$/g, "");
 
-    atts.forEach((att, subIdx) => {
+    for (let subIdx = 0; subIdx < atts.length; subIdx++) {
+      const att = atts[subIdx];
       const isMulti = atts.length > 1;
       const subNum = subIdx + 1;
       const ext = att.ext?.startsWith(".") ? att.ext : `.${att.ext || "pdf"}`;
@@ -518,6 +536,15 @@ export async function generateMonthlyReportZip({
         try { fileBuffer = fs.readFileSync(att.filePath); } catch (e) {}
       } else if (att.base64Data) {
         try { fileBuffer = Buffer.from(att.base64Data, "base64"); } catch (e) {}
+      } else if (att.fileUrl && /^https?:\/\//i.test(att.fileUrl)) {
+        try {
+          const resp = await fetch(att.fileUrl);
+          if (resp.ok) {
+            fileBuffer = Buffer.from(await resp.arrayBuffer());
+          }
+        } catch (netErr) {
+          console.warn("Gagal mengunduh berkas remote R2 ke arsip ZIP:", att.fileUrl, netErr.message);
+        }
       }
 
       if (fileBuffer) {
@@ -531,7 +558,7 @@ export async function generateMonthlyReportZip({
           type: att.type === "photo" ? "Foto Dokumentasi" : "Dokumen Berkas"
         });
       }
-    });
+    }
   }
 
   let daftarText = `========================================================================\nDAFTAR LAMPIRAN BUKTI EVIDEN KINERJA PEGAWAI\nPeriode    : Bulan ${monthName} ${year}\nPegawai    : ${pegawai?.nama || "-"} (NIP: ${pegawai?.nip || "-"})\nJabatan    : ${pegawai?.jabatan || "-"}\nUnit Kerja : ${pegawai?.unitKerja || "-"}\n========================================================================\n\n`;

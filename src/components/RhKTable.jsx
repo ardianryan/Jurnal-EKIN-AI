@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Plus, Trash2, Edit3, Check, FileCheck, Sparkles, AlertCircle, SlidersHorizontal, BarChart3, FileSpreadsheet } from "lucide-react";
+import { Plus, Trash2, Edit3, Check, FileCheck, Sparkles, AlertCircle, SlidersHorizontal, BarChart3, FileSpreadsheet, FileText, Camera, Paperclip, Link2 } from "lucide-react";
 import { deriveUkuranKeberhasilan } from "../services/aiService";
 
 export default function RhKTable({
@@ -351,22 +351,22 @@ export default function RhKTable({
                   </div>
                   {(rhk.journalCount > 0 || rhk.photoCount > 0 || rhk.docCount > 0 || rhk.linkCount > 0) && (
                     <div style={{ display: "flex", gap: "0.25rem", marginTop: "0.2rem", flexWrap: "wrap" }}>
-                      <span className="badge" style={{ background: "var(--accent-cyan-subtle)", color: "var(--accent-cyan)", fontSize: "0.68rem" }}>
-                        📝 {rhk.journalCount || 0} Jurnal
+                      <span className="badge" style={{ background: "var(--accent-cyan-subtle)", color: "var(--accent-cyan)", fontSize: "0.68rem", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                        <FileText size={11} /> {rhk.journalCount || 0} Jurnal
                       </span>
                       {rhk.photoCount > 0 && (
-                        <span className="badge" style={{ background: "var(--accent-emerald-subtle)", color: "var(--accent-emerald)", fontSize: "0.68rem" }}>
-                          📷 {rhk.photoCount} Foto
+                        <span className="badge" style={{ background: "var(--accent-emerald-subtle)", color: "var(--accent-emerald)", fontSize: "0.68rem", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                          <Camera size={11} /> {rhk.photoCount} Foto
                         </span>
                       )}
                       {rhk.docCount > 0 && (
-                        <span className="badge" style={{ background: "var(--accent-amber-subtle)", color: "var(--accent-amber)", fontSize: "0.68rem" }}>
-                          📄 {rhk.docCount} Dokumen
+                        <span className="badge" style={{ background: "var(--accent-amber-subtle)", color: "var(--accent-amber)", fontSize: "0.68rem", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                          <Paperclip size={11} /> {rhk.docCount} Dokumen
                         </span>
                       )}
                       {rhk.linkCount > 0 && (
-                        <span className="badge" style={{ background: "rgba(59, 130, 246, 0.15)", color: "var(--accent-primary)", fontSize: "0.68rem" }}>
-                          🔗 {rhk.linkCount} Link Drive
+                        <span className="badge" style={{ background: "rgba(59, 130, 246, 0.15)", color: "var(--accent-primary)", fontSize: "0.68rem", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                          <Link2 size={11} /> {rhk.linkCount} Link Drive
                         </span>
                       )}
                     </div>
@@ -514,22 +514,22 @@ export default function RhKTable({
               </div>
               {(rhk.journalCount > 0 || rhk.photoCount > 0 || rhk.docCount > 0 || rhk.linkCount > 0) && (
                 <div style={{ display: "flex", gap: "0.25rem", marginTop: "0.2rem", flexWrap: "wrap" }}>
-                  <span className="badge" style={{ background: "var(--accent-cyan-subtle)", color: "var(--accent-cyan)", fontSize: "0.68rem" }}>
-                    📝 {rhk.journalCount || 0} Jurnal
+                  <span className="badge" style={{ background: "var(--accent-cyan-subtle)", color: "var(--accent-cyan)", fontSize: "0.68rem", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                    <FileText size={11} /> {rhk.journalCount || 0} Jurnal
                   </span>
                   {rhk.photoCount > 0 && (
-                    <span className="badge" style={{ background: "var(--accent-emerald-subtle)", color: "var(--accent-emerald)", fontSize: "0.68rem" }}>
-                      📷 {rhk.photoCount} Foto
+                    <span className="badge" style={{ background: "var(--accent-emerald-subtle)", color: "var(--accent-emerald)", fontSize: "0.68rem", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                      <Camera size={11} /> {rhk.photoCount} Foto
                     </span>
                   )}
                   {rhk.docCount > 0 && (
-                    <span className="badge" style={{ background: "var(--accent-amber-subtle)", color: "var(--accent-amber)", fontSize: "0.68rem" }}>
-                      📄 {rhk.docCount} Dokumen
+                    <span className="badge" style={{ background: "var(--accent-amber-subtle)", color: "var(--accent-amber)", fontSize: "0.68rem", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                      <Paperclip size={11} /> {rhk.docCount} Dokumen
                     </span>
                   )}
                   {rhk.linkCount > 0 && (
-                    <span className="badge" style={{ background: "rgba(59, 130, 246, 0.15)", color: "var(--accent-primary)", fontSize: "0.68rem" }}>
-                      🔗 {rhk.linkCount} Link Drive
+                    <span className="badge" style={{ background: "rgba(59, 130, 246, 0.15)", color: "var(--accent-primary)", fontSize: "0.68rem", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                      <Link2 size={11} /> {rhk.linkCount} Link Drive
                     </span>
                   )}
                 </div>

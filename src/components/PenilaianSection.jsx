@@ -230,7 +230,7 @@ export default function PenilaianSection({
             }}
             onClick={() => setIsAddPeriodModalOpen(true)}
           >
-            <span>+ Tambah Periode Penilaian</span>
+            <span>Tambah Periode Penilaian</span>
           </button>
 
           <button 
@@ -261,7 +261,7 @@ export default function PenilaianSection({
         lineHeight: "1.55",
         marginBottom: "1.5rem"
       }}>
-        <strong>💡 Alur Penilaian Kinerja Periodik ASN (PermenPAN-RB No. 6 Tahun 2022):</strong>
+        <strong>Alur Penilaian Kinerja Periodik ASN (PermenPAN-RB No. 6 Tahun 2022):</strong>
         <br />
         1. Klik <strong>Rencana Aksi</strong> untuk mendefinisikan target kegiatan spesifik pada bulan tersebut.
         <br />
@@ -700,7 +700,7 @@ export default function PenilaianSection({
                         <strong style={{ fontSize: "0.9rem", color: "var(--accent-primary)" }}>{b.name}</strong>
                       </div>
                       <span className="badge badge-utama" style={{ fontSize: "0.7rem" }}>
-                        👍 Sesuai Ekspektasi
+                        Sesuai Ekspektasi
                       </span>
                     </div>
 

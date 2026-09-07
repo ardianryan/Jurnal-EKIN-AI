@@ -217,6 +217,24 @@ function ensureDb() {
       };
       modified = true;
     }
+    if (!data.settings.sso) {
+      data.settings.sso = {
+        enabled: Boolean(process.env.ZITADEL_CLIENT_ID) || false,
+        issuer: process.env.ZITADEL_ISSUER || "",
+        clientId: process.env.ZITADEL_CLIENT_ID || "",
+        clientSecret: process.env.ZITADEL_CLIENT_SECRET || "",
+        buttonText: process.env.ZITADEL_BUTTON_TEXT || "Masuk dengan SSO"
+      };
+      modified = true;
+    }
+    if (!data.settings.registrationPolicy) {
+      data.settings.registrationPolicy = {
+        mode: "open", // "open" | "closed"
+        closedRegistrationUrl: "",
+        closedRegistrationMessage: "Pendaftaran akun mandiri dinonaktifkan oleh administrator. Silakan lakukan pendaftaran melalui portal resmi instansi berikut:"
+      };
+      modified = true;
+    }
 
     // Bersihkan sesi kadaluarsa saat inisialisasi / reload
     if (cleanupExpiredSessions(data)) {

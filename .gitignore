@@ -32,3 +32,7 @@ database/uploads/*
 !database/uploads/.gitkeep
 scratch/*
 !scratch/.gitkeep
+
+# Antigravity agent files
+.agents
+skills-lock.json

@@ -275,6 +275,27 @@ export async function syncWithBackend() {
         const merged = Array.from(map.values());
         localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(merged));
       }
+      if (data && data.settings) {
+        if (data.settings.schoolLogo !== undefined) {
+          const localLogo = localStorage.getItem(SCHOOL_LOGO_KEY);
+          if (data.settings.schoolLogo && !localLogo) {
+            localStorage.setItem(SCHOOL_LOGO_KEY, data.settings.schoolLogo);
+          }
+        }
+        if (data.settings.schoolFavicon !== undefined) {
+          const localFavicon = localStorage.getItem(SCHOOL_FAVICON_KEY);
+          if (data.settings.schoolFavicon && !localFavicon) {
+            localStorage.setItem(SCHOOL_FAVICON_KEY, data.settings.schoolFavicon);
+            applyDynamicFavicon(data.settings.schoolFavicon);
+          }
+        }
+        if (data.settings.schoolName) {
+          const localName = localStorage.getItem(SCHOOL_NAME_KEY);
+          if (!localName) {
+            localStorage.setItem(SCHOOL_NAME_KEY, data.settings.schoolName);
+          }
+        }
+      }
       return {
         accounts: getAccounts(),
         journals: Array.isArray(data?.journals) ? data.journals : [],
@@ -595,6 +616,69 @@ export function logout() {
 
   localStorage.removeItem(SESSION_STORAGE_KEY);
   localStorage.removeItem(CURRENT_USER_KEY);
+}
+
+// -------------------------------------------------------------
+// KONFIGURASI SSO ZITADEL & KEBIJAKAN REGISTRASI
+// -------------------------------------------------------------
+const SSO_CONFIG_CACHE_KEY = "ekinerja_sso_config_cache";
+
+export function getCachedSsoConfig() {
+  try {
+    const raw = localStorage.getItem(SSO_CONFIG_CACHE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return {
+    enabled: false,
+    buttonText: "Masuk dengan SSO",
+    issuer: "",
+    registrationMode: "open", // "open" | "closed"
+    closedRegistrationUrl: "",
+    closedRegistrationMessage: "Pendaftaran akun mandiri dinonaktifkan oleh administrator. Silakan lakukan pendaftaran melalui portal resmi instansi berikut:"
+  };
+}
+
+export async function fetchSsoConfig() {
+  try {
+    const res = await fetch("/api/auth/sso/config");
+    if (res.ok) {
+      const data = await res.json();
+      localStorage.setItem(SSO_CONFIG_CACHE_KEY, JSON.stringify(data));
+      return data;
+    }
+  } catch (e) {}
+  return getCachedSsoConfig();
+}
+
+export async function saveSsoConfig(payload) {
+  const res = await fetch("/api/settings/sso", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || "Gagal menyimpan pengaturan SSO.");
+  }
+  const data = await res.json();
+  if (data.config) {
+    localStorage.setItem(SSO_CONFIG_CACHE_KEY, JSON.stringify(data.config));
+  }
+  return data;
+}
+
+export function handleSsoLoginSession(token, user) {
+  if (!token || !user) return null;
+  const expiresAt = Date.now() + ONE_DAY_MS;
+  const session = {
+    token,
+    user,
+    expiresAt,
+    createdAt: Date.now()
+  };
+  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+  localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+  return user;
 }
 
 // Cek Apakah Data Profil Pegawai Belum Lengkap (Wajib Setup Awal)
@@ -1100,3 +1184,317 @@ export async function fetchLiveDatabaseStatus() {
     return null;
   }
 }
+
+/**
+ * Mengambil status realtime storage Cloudflare R2 / S3 (/api/storage/status)
+ */
+export async function fetchStorageStatus() {
+  try {
+    const res = await fetch("/api/storage/status");
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Memindai berkas di Cloudflare R2 berdasarkan pilihan tahun (Dry Run / Pratinjau)
+ * @param {Object} params
+ * @param {number|string} params.targetYear
+ * @param {string} [params.mode="before_or_equal"] - "exact" atau "before_or_equal"
+ */
+export async function scanStorageFilesByYear({ targetYear, mode = "before_or_equal" }) {
+  try {
+    const res = await fetch("/api/storage/cleanup/scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetYear, mode })
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "Gagal memindai berkas storage.");
+    }
+    return await res.json();
+  } catch (e) {
+    return {
+      success: false,
+      error: e.message || "Gagal memindai berkas storage."
+    };
+  }
+}
+
+/**
+ * Mengeksekusi pembersihan permanen berkas Cloudflare R2 berdasarkan pilihan tahun
+ * @param {Object} params
+ * @param {number|string} params.targetYear
+ * @param {string} [params.mode="before_or_equal"]
+ */
+export async function executeStorageCleanupByYear({ targetYear, mode = "before_or_equal" }) {
+  try {
+    const res = await fetch("/api/storage/cleanup/execute", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetYear, mode })
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "Gagal membersihkan berkas storage.");
+    }
+    return await res.json();
+  } catch (e) {
+    return {
+      success: false,
+      error: e.message || "Gagal membersihkan berkas storage."
+    };
+  }
+}
+
+
+const SCHOOL_NAME_KEY = "ekinerja_school_name";
+const DEFAULT_SCHOOL_NAME = "SMAN Garuda";
+
+/**
+ * Mendapatkan Nama Sekolah / Instansi secara dinamis
+ */
+export function getSchoolName() {
+  try {
+    const saved = localStorage.getItem(SCHOOL_NAME_KEY);
+    if (saved && saved.trim()) return saved.trim();
+  } catch (e) {}
+  return DEFAULT_SCHOOL_NAME;
+}
+
+/**
+ * Menyimpan Nama Sekolah / Instansi secara dinamis
+ */
+export function setSchoolName(name) {
+  if (!name || !name.trim()) return DEFAULT_SCHOOL_NAME;
+  try {
+    localStorage.setItem(SCHOOL_NAME_KEY, name.trim());
+    pushSyncToBackend({
+      settings: {
+        schoolName: name.trim()
+      }
+    });
+  } catch (e) {}
+  return name.trim();
+}
+
+// -------------------------------------------------------------
+// LOGO RESMI INSTANSI & AUTO KONVERSI FAVICON
+// -------------------------------------------------------------
+export const SCHOOL_LOGO_KEY = "ekinerja_school_logo";
+export const SCHOOL_FAVICON_KEY = "ekinerja_school_favicon";
+export const DEFAULT_FAVICON = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2334634b'><path d='M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z'/></svg>";
+
+/**
+ * Mendapatkan Logo Instansi (Base64 DataURL atau null)
+ */
+export function getSchoolLogo() {
+  try {
+    return localStorage.getItem(SCHOOL_LOGO_KEY) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Mendapatkan Favicon Instansi (Base64 DataURL atau null)
+ */
+export function getSchoolFavicon() {
+  try {
+    return localStorage.getItem(SCHOOL_FAVICON_KEY) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Memasang favicon dinamis ke tag <link rel="icon"> di document.head
+ */
+export function applyDynamicFavicon(faviconUrl = null) {
+  if (typeof document === "undefined") return;
+  try {
+    const url = faviconUrl || getSchoolFavicon() || DEFAULT_FAVICON;
+    let link = document.querySelector("link[rel~='icon']");
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+    link.href = url;
+    if (url.startsWith("data:image/svg+xml")) {
+      link.type = "image/svg+xml";
+    } else {
+      link.type = "image/png";
+    }
+  } catch (e) {
+    console.warn("Gagal menerapkan favicon dinamis:", e);
+  }
+}
+
+/**
+ * Menyimpan Logo & Favicon ke LocalStorage dan kirim ke backend
+ */
+export function setSchoolLogo(logoDataUrl, faviconDataUrl) {
+  try {
+    if (logoDataUrl) {
+      localStorage.setItem(SCHOOL_LOGO_KEY, logoDataUrl);
+    } else {
+      localStorage.removeItem(SCHOOL_LOGO_KEY);
+    }
+
+    if (faviconDataUrl) {
+      localStorage.setItem(SCHOOL_FAVICON_KEY, faviconDataUrl);
+    } else {
+      localStorage.removeItem(SCHOOL_FAVICON_KEY);
+    }
+
+    applyDynamicFavicon(faviconDataUrl);
+
+    // Kirim sinkronisasi ke backend store
+    pushSyncToBackend({
+      settings: {
+        schoolLogo: logoDataUrl || null,
+        schoolFavicon: faviconDataUrl || null,
+        schoolName: getSchoolName()
+      }
+    });
+
+    // Kirim event agar komponen UI terupdate secara reaktif
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("ekinerja_logo_changed", {
+        detail: { logo: logoDataUrl, favicon: faviconDataUrl }
+      }));
+    }
+  } catch (e) {
+    console.error("Gagal menyimpan logo sekolah:", e);
+  }
+}
+
+/**
+ * Menghapus Logo & Mengembalikan ke icon bawaan aplikasi
+ */
+export function removeSchoolLogo() {
+  setSchoolLogo(null, null);
+  applyDynamicFavicon(DEFAULT_FAVICON);
+}
+
+/**
+ * Mengonversi berkas logo pengguna menjadi:
+ * 1. Logo Teroptimasi (maksimal 256px, rasio terjaga, kompresi PNG/WebP ~20-40KB)
+ * 2. Favicon Persegi Otomatis (48x48 PNG ~2-4KB dengan padding fit)
+ */
+export function processAndOptimizeLogo(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      return reject(new Error("Berkas gambar tidak ditemukan"));
+    }
+
+    // Validasi tipe berkas
+    const validMimes = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/svg+xml"];
+    if (!validMimes.includes(file.type) && !file.name.match(/\.(png|jpe?g|webp|svg)$/i)) {
+      return reject(new Error("Format berkas harus berupa PNG, JPG, JPEG, WEBP, atau SVG"));
+    }
+
+    const originalSize = file.size;
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      const src = e.target.result;
+      const img = new Image();
+
+      img.onload = () => {
+        try {
+          const origW = img.naturalWidth || img.width || 1;
+          const origH = img.naturalHeight || img.height || 1;
+
+          // 1. Buat Logo Teroptimasi (Maks 256px dimensi terpanjang)
+          const MAX_LOGO_DIM = 256;
+          let logoW = origW;
+          let logoH = origH;
+
+          if (origW > MAX_LOGO_DIM || origH > MAX_LOGO_DIM) {
+            if (origW >= origH) {
+              logoW = MAX_LOGO_DIM;
+              logoH = Math.max(1, Math.round((origH * MAX_LOGO_DIM) / origW));
+            } else {
+              logoH = MAX_LOGO_DIM;
+              logoW = Math.max(1, Math.round((origW * MAX_LOGO_DIM) / origH));
+            }
+          }
+
+          const logoCanvas = document.createElement("canvas");
+          logoCanvas.width = logoW;
+          logoCanvas.height = logoH;
+          const logoCtx = logoCanvas.getContext("2d");
+          logoCtx.imageSmoothingEnabled = true;
+          logoCtx.imageSmoothingQuality = "high";
+          logoCtx.clearRect(0, 0, logoW, logoH);
+          logoCtx.drawImage(img, 0, 0, logoW, logoH);
+
+          const logoDataUrl = logoCanvas.toDataURL("image/png");
+
+          // 2. Buat Favicon Persegi Otomatis (48x48 px dengan breathing padding)
+          const FAVICON_DIM = 48;
+          const favCanvas = document.createElement("canvas");
+          favCanvas.width = FAVICON_DIM;
+          favCanvas.height = FAVICON_DIM;
+          const favCtx = favCanvas.getContext("2d");
+          favCtx.imageSmoothingEnabled = true;
+          favCtx.imageSmoothingQuality = "high";
+          favCtx.clearRect(0, 0, FAVICON_DIM, FAVICON_DIM);
+
+          // Pasang di dalam area 40x40 agar tidak terpotong sudut tab browser
+          const PADDED_DIM = 40;
+          let favW = origW;
+          let favH = origH;
+
+          if (origW >= origH) {
+            favW = PADDED_DIM;
+            favH = Math.max(1, Math.round((origH * PADDED_DIM) / origW));
+          } else {
+            favH = PADDED_DIM;
+            favW = Math.max(1, Math.round((origW * PADDED_DIM) / origH));
+          }
+
+          const favX = Math.round((FAVICON_DIM - favW) / 2);
+          const favY = Math.round((FAVICON_DIM - favH) / 2);
+
+          favCtx.drawImage(img, favX, favY, favW, favH);
+          const faviconDataUrl = favCanvas.toDataURL("image/png");
+
+          // Hitung estimasi ukuran dalam Bytes
+          const logoBytes = Math.round((logoDataUrl.length * 3) / 4);
+          const faviconBytes = Math.round((faviconDataUrl.length * 3) / 4);
+
+          resolve({
+            logoUrl: logoDataUrl,
+            faviconUrl: faviconDataUrl,
+            originalSize,
+            logoSize: logoBytes,
+            faviconSize: faviconBytes,
+            width: logoW,
+            height: logoH,
+            origWidth: origW,
+            origHeight: origH
+          });
+        } catch (canvasErr) {
+          reject(new Error("Gagal mengolah gambar di kanvas: " + canvasErr.message));
+        }
+      };
+
+      img.onerror = () => {
+        reject(new Error("Berkas gambar rusak atau tidak dapat dimuat"));
+      };
+
+      img.src = src;
+    };
+
+    reader.onerror = () => reject(new Error("Gagal membaca berkas gambar"));
+    reader.readAsDataURL(file);
+  });
+}
+

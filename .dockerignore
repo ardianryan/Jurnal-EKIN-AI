@@ -1,7 +1,15 @@
 node_modules
 dist
+dist-ssr
+.env
+.env.*
+!.env.example
 .git
 .github
-*.log
+.agents
+.vscode
+.idea
 .DS_Store
+*.log
 scratch
+*.tar.gz

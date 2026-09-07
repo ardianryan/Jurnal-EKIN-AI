@@ -35,6 +35,7 @@ import {
 } from "./dbStore.js";
 import { polishJournalNode } from "./aiServiceNode.js";
 import { generateMonthlyReportPdf, generateMonthlyReportZip } from "./pdfGenerator.js";
+import { isR2Configured, uploadBufferToR2 } from "./r2StorageService.js";
 
 // Helper menentukan API Key AI untuk pengguna Telegram sesuai preferensi (env / personal / offline)
 function resolveTelegramUserApiKey(user) {
@@ -2840,19 +2841,43 @@ async function handleIncomingAttachment(botInstance, msg, item) {
           }
         }
 
+        let photoFileUrl = "";
+        let photoFileName = "";
+
         if (downloadedPath && fs.existsSync(downloadedPath)) {
           const newPhotoName = `Foto_${monthTag}_${Date.now()}_${crypto.randomBytes(3).toString("hex")}.jpg`;
-          const newPath = path.join(UPLOADS_DIR, newPhotoName);
-          fs.renameSync(downloadedPath, newPath);
-          savedFilePath = newPath;
+
+          if (isR2Configured()) {
+            try {
+              const fileBuf = fs.readFileSync(downloadedPath);
+              const r2Res = await uploadBufferToR2(fileBuf, newPhotoName, "image/jpeg", now.toISOString().slice(0, 10));
+              photoFileUrl = r2Res.publicUrl;
+              photoFileName = r2Res.fileName || newPhotoName;
+              savedFilePath = "";
+              try { fs.unlinkSync(downloadedPath); } catch (e) {}
+            } catch (r2Err) {
+              console.warn("Upload bot foto ke R2 gagal, simpan lokal:", r2Err.message);
+              const newPath = path.join(UPLOADS_DIR, newPhotoName);
+              fs.renameSync(downloadedPath, newPath);
+              savedFilePath = newPath;
+            }
+          } else {
+            const newPath = path.join(UPLOADS_DIR, newPhotoName);
+            fs.renameSync(downloadedPath, newPath);
+            savedFilePath = newPath;
+          }
         }
       } catch (dlErr) {
         console.warn("Gagal mengunduh berkas foto fisik:", dlErr.message);
       }
 
       const baseAppUrl = (process.env.APP_URL || "").trim().replace(/\/+$/, "");
-      const photoFileName = savedFilePath ? path.basename(savedFilePath) : `Foto_${monthTag}_${Date.now()}.jpg`;
-      const photoFileUrl = savedFilePath ? (baseAppUrl ? `${baseAppUrl}/uploads/${photoFileName}` : `/uploads/${photoFileName}`) : "";
+      if (!photoFileName) {
+        photoFileName = savedFilePath ? path.basename(savedFilePath) : `Foto_${monthTag}_${Date.now()}.jpg`;
+      }
+      if (!photoFileUrl) {
+        photoFileUrl = savedFilePath ? (baseAppUrl ? `${baseAppUrl}/uploads/${photoFileName}` : `/uploads/${photoFileName}`) : "";
+      }
       const ext = path.extname(photoFileName).toLowerCase() || ".jpg";
 
       const item = {
@@ -2930,19 +2955,43 @@ async function handleIncomingAttachment(botInstance, msg, item) {
           }
         }
 
+        let docFileUrl = "";
+        let storedFileName = "";
+
         if (downloadedPath && fs.existsSync(downloadedPath)) {
           const newStoredName = `${Date.now()}_${docFileName}`;
-          const newPath = path.join(UPLOADS_DIR, newStoredName);
-          fs.renameSync(downloadedPath, newPath);
-          savedFilePath = newPath;
+
+          if (isR2Configured()) {
+            try {
+              const fileBuf = fs.readFileSync(downloadedPath);
+              const r2Res = await uploadBufferToR2(fileBuf, docFileName, "application/octet-stream", now.toISOString().slice(0, 10));
+              docFileUrl = r2Res.publicUrl;
+              storedFileName = r2Res.storedName || newStoredName;
+              savedFilePath = "";
+              try { fs.unlinkSync(downloadedPath); } catch (e) {}
+            } catch (r2Err) {
+              console.warn("Upload bot dokumen ke R2 gagal, simpan lokal:", r2Err.message);
+              const newPath = path.join(UPLOADS_DIR, newStoredName);
+              fs.renameSync(downloadedPath, newPath);
+              savedFilePath = newPath;
+            }
+          } else {
+            const newPath = path.join(UPLOADS_DIR, newStoredName);
+            fs.renameSync(downloadedPath, newPath);
+            savedFilePath = newPath;
+          }
         }
       } catch (dlErr) {
         console.warn("Gagal mengunduh berkas dokumen:", dlErr.message);
       }
 
       const baseAppUrl = (process.env.APP_URL || "").trim().replace(/\/+$/, "");
-      const storedFileName = savedFilePath ? path.basename(savedFilePath) : docFileName;
-      const docFileUrl = savedFilePath ? (baseAppUrl ? `${baseAppUrl}/uploads/${storedFileName}` : `/uploads/${storedFileName}`) : "";
+      if (!storedFileName) {
+        storedFileName = savedFilePath ? path.basename(savedFilePath) : docFileName;
+      }
+      if (!docFileUrl) {
+        docFileUrl = savedFilePath ? (baseAppUrl ? `${baseAppUrl}/uploads/${storedFileName}` : `/uploads/${storedFileName}`) : "";
+      }
       const ext = path.extname(docFileName).toLowerCase() || ".pdf";
       const isImg = [".jpg", ".jpeg", ".png", ".webp", ".gif"].includes(ext);
 

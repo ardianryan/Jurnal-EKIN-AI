@@ -45,7 +45,9 @@ export default function MonthlyReportGenerator({
   rhkList,
   journals = [],
   pendekatan = "KUANTITATIF",
-  onSyncLinkToRhk
+  onSyncLinkToRhk,
+  schoolName = "SMAN Garuda",
+  schoolLogo = null
 }) {
   const [selectedMonth, setSelectedMonth] = useState(() => String(new Date().getMonth() + 1).padStart(2, "0"));
   const [selectedYear, setSelectedYear] = useState(() => String(new Date().getFullYear()));
@@ -462,104 +464,62 @@ export default function MonthlyReportGenerator({
             {setPegawai && (
               <button
                 type="button"
-                className="btn btn-secondary"
+                className="btn btn-secondary btn-sm"
                 onClick={() => setIsEditProfileOpen(true)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                  fontWeight: "600",
-                  padding: "0.5rem 1rem"
-                }}
                 title="Sesuaikan Nama, NIP, Pangkat, Jabatan Pegawai untuk Laporan"
               >
-                <Edit3 size={15} />
-                <span>Ubah Data Pegawai</span>
+                <Edit3 size={14} />
+                <span>Ubah Identitas Pegawai</span>
               </button>
             )}
 
             <button
               type="button"
-              className="btn btn-secondary"
+              className="btn btn-secondary btn-sm"
               onClick={handleDownloadZip}
               disabled={isDownloadingZip}
-              style={{
-                background: "linear-gradient(135deg, #059669 0%, #10b981 100%)",
-                color: "#ffffff",
-                border: "none",
-                padding: "0.5rem 1.25rem",
-                fontWeight: "700",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                boxShadow: "0 2px 8px rgba(16, 185, 129, 0.25)",
-                cursor: isDownloadingZip ? "not-allowed" : "pointer"
-              }}
               title="Unduh Paket Arsip ZIP (Laporan PDF + Seluruh Lampiran Terupload untuk Google Drive)"
             >
               {isDownloadingZip ? (
-                <span>⏳ Menyiapkan ZIP...</span>
+                <span>Menyiapkan ZIP...</span>
               ) : (
                 <>
-                  <Download size={16} />
-                  <span>Unduh Paket Laporan (.ZIP)</span>
+                  <Download size={14} />
+                  <span>Unduh Paket (.ZIP)</span>
                 </>
               )}
             </button>
 
             <button
               type="button"
-              className="btn btn-secondary"
+              className="btn btn-secondary btn-sm"
               onClick={handleDownloadPdf}
               disabled={isDownloadingPdf}
-              style={{
-                background: "linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)",
-                color: "#ffffff",
-                border: "none",
-                padding: "0.5rem 1.1rem",
-                fontWeight: "700",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                boxShadow: "0 2px 8px rgba(59, 130, 246, 0.25)",
-                cursor: isDownloadingPdf ? "not-allowed" : "pointer"
-              }}
               title="Unduh berkas PDF Laporan Bulanan Resmi langsung dari server"
             >
               {isDownloadingPdf ? (
-                <span>⏳ Mengunduh PDF...</span>
+                <span>Mengunduh PDF...</span>
               ) : (
                 <>
-                  <FileText size={16} />
-                  <span>Unduh PDF Langsung</span>
+                  <FileText size={14} />
+                  <span>Unduh PDF</span>
                 </>
               )}
             </button>
 
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-primary btn-sm"
               onClick={handlePrint}
               disabled={isPrintingPdf}
-              style={{
-                background: "#2563eb",
-                borderColor: "#2563eb",
-                padding: "0.5rem 1.25rem",
-                fontWeight: "700",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                boxShadow: "0 2px 8px rgba(37, 99, 235, 0.25)",
-                cursor: isPrintingPdf ? "not-allowed" : "pointer"
-              }}
               title="Buka dialog cetak dengan berkas PDF resmi yang sama persis"
             >
               {isPrintingPdf ? (
-                <span>⏳ Memuat PDF...</span>
+                <span>Memuat PDF...</span>
               ) : (
                 <>
-                  <Printer size={16} />
-                  <span>Cetak / Dialog PDF (A4)</span>
+                  <Printer size={14} />
+                  <span>Cetak PDF A4</span>
                 </>
               )}
             </button>
@@ -569,83 +529,88 @@ export default function MonthlyReportGenerator({
         {/* Pilihan Periode Bulan & Google Drive Sync */}
         <div style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-          gap: "1rem",
+          gridTemplateColumns: "1fr 1.25fr",
+          gap: "1.25rem",
           background: "var(--bg-tertiary)",
-          padding: "1rem 1.25rem",
+          padding: "1.25rem",
           borderRadius: "var(--radius-md)",
           border: "1px solid var(--border-subtle)"
         }}>
           {/* 1. Pilih Bulan Laporan */}
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label" style={{ fontWeight: "700", fontSize: "0.82rem" }}>
-              <Calendar size={14} style={{ display: "inline", marginRight: "4px" }} />
-              Pilih Bulan Laporan:
-            </label>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <select
-                className="form-select"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                style={{ flex: 2, fontWeight: "600" }}
-              >
-                {MONTHS_LIST.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} ({m.range})
-                  </option>
-                ))}
-              </select>
-              <select
-                className="form-select"
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                style={{ flex: 1, fontWeight: "600" }}
-              >
-                <option value="2026">2026</option>
-                <option value="2025">2025</option>
-              </select>
+          <div className="form-group" style={{ margin: 0, justifyContent: "space-between" }}>
+            <div>
+              <label className="form-label" style={{ fontWeight: "700", fontSize: "0.76rem", display: "flex", alignItems: "center", gap: "0.35rem", marginBottom: "0.4rem" }}>
+                <Calendar size={14} style={{ color: "var(--accent-primary)" }} />
+                <span>Pilih Bulan Laporan:</span>
+              </label>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <select
+                  className="form-select"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  style={{ flex: 3, fontWeight: "600", fontSize: "0.85rem", height: "40px", minHeight: "40px" }}
+                >
+                  {MONTHS_LIST.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} ({m.range})
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="form-select"
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  style={{ flex: 1.2, fontWeight: "600", fontSize: "0.85rem", height: "40px", minHeight: "40px" }}
+                >
+                  <option value="2026">2026</option>
+                  <option value="2025">2025</option>
+                </select>
+              </div>
             </div>
-            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "4px", display: "block" }}>
-              Ditemukan <strong>{currentMonthData.filteredJournals.length} kegiatan</strong> &amp; <strong>{currentMonthData.photoEvidences.length} foto eviden</strong> di bulan ini.
+            <span style={{ fontSize: "0.74rem", color: "var(--text-muted)", marginTop: "6px", display: "block" }}>
+              Terdeteksi <strong>{currentMonthData.filteredJournals.length} kegiatan</strong> &amp; <strong>{currentMonthData.photoEvidences.length} foto eviden</strong> di bulan ini.
             </span>
           </div>
 
           {/* 2. Link Google Drive Bukti Dukung */}
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label" style={{ fontWeight: "700", fontSize: "0.82rem" }}>
-              <UploadCloud size={14} style={{ display: "inline", marginRight: "4px" }} />
-              Link Folder Google Drive (Untuk BUKTI DUKUNG BKN):
-            </label>
-            <div style={{ display: "flex", gap: "0.4rem" }}>
-              <input
-                type="url"
-                className="input-field"
-                value={gdriveLink}
-                onChange={(e) => setGdriveLink(e.target.value)}
-                placeholder="Contoh: https://drive.google.com/drive/folders/13gAIC8Nm4kHqjxlAETxcx6km4m5ZUThz"
-                style={{ fontSize: "0.82rem" }}
-              />
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={handleSaveGdriveLink}
-                title="Simpan Link ke BKN Bukti Dukung"
-                style={{ whiteSpace: "nowrap" }}
-              >
-                {isSavedLink ? <Check size={14} className="text-emerald-500" /> : "Simpan"}
-              </button>
-              <a
-                href={gdriveLink || "https://drive.google.com"}
-                target="_blank"
-                rel="noreferrer"
-                className="btn btn-secondary btn-icon btn-sm"
-                title={gdriveLink ? "Buka Folder Google Drive di Tab Baru" : "Buka Google Drive"}
-              >
-                <ExternalLink size={14} />
-              </a>
+          <div className="form-group" style={{ margin: 0, justifyContent: "space-between" }}>
+            <div>
+              <label className="form-label" style={{ fontWeight: "700", fontSize: "0.76rem", display: "flex", alignItems: "center", gap: "0.35rem", marginBottom: "0.4rem" }}>
+                <UploadCloud size={14} style={{ color: "var(--accent-primary)" }} />
+                <span>Folder Google Drive Bukti Dukung:</span>
+              </label>
+              <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                <input
+                  type="url"
+                  className="input-field"
+                  value={gdriveLink}
+                  onChange={(e) => setGdriveLink(e.target.value)}
+                  placeholder="https://drive.google.com/drive/folders/..."
+                  style={{ fontSize: "0.84rem", height: "40px", minHeight: "40px" }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleSaveGdriveLink}
+                  title="Simpan Link ke BKN Bukti Dukung"
+                  style={{ whiteSpace: "nowrap", height: "40px", padding: "0 0.9rem", fontWeight: "700" }}
+                >
+                  {isSavedLink ? <Check size={15} className="text-emerald-500" /> : "Simpan"}
+                </button>
+                <a
+                  href={gdriveLink || "https://drive.google.com"}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-secondary btn-icon btn-sm"
+                  title={gdriveLink ? "Buka Folder Google Drive di Tab Baru" : "Buka Google Drive"}
+                  style={{ height: "40px", width: "40px", flexShrink: 0 }}
+                >
+                  <ExternalLink size={15} />
+                </a>
+              </div>
             </div>
-            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "4px", display: "block" }}>
-              Upload file PDF hasil cetak ini ke Google Drive, lalu copy link-nya ke form Bukti Dukung BKN.
+            <span style={{ fontSize: "0.74rem", color: "var(--text-muted)", marginTop: "6px", display: "block" }}>
+              Unggah PDF cetak ke tautan Drive di atas, lalu sematkan link ke isian Bukti Dukung E-Kinerja BKN.
             </span>
           </div>
         </div>
@@ -654,8 +619,8 @@ export default function MonthlyReportGenerator({
         <div style={{
           marginTop: "1rem",
           padding: "0.85rem 1rem",
-          background: "rgba(16, 185, 129, 0.08)",
-          border: "1px solid rgba(16, 185, 129, 0.25)",
+          background: "var(--accent-tint, #edf5f0)",
+          border: "1px solid var(--border-subtle)",
           borderRadius: "var(--radius-md)",
           display: "flex",
           alignItems: "center",
@@ -664,8 +629,9 @@ export default function MonthlyReportGenerator({
           gap: "0.75rem"
         }}>
           <div style={{ flex: 1, minWidth: "260px" }}>
-            <div style={{ fontSize: "0.78rem", fontWeight: "700", color: "var(--accent-emerald)", textTransform: "uppercase" }}>
-              💡 Narasi Realisasi Siap Paste ke e-Kinerja BKN ({currentMonthData.monthObj.name} {selectedYear}):
+            <div style={{ fontSize: "0.78rem", fontWeight: "700", color: "var(--accent-primary)", textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+              <Sparkles size={13} />
+              <span>Narasi Realisasi Siap Tempel ke e-Kinerja BKN ({currentMonthData.monthObj.name} {selectedYear}):</span>
             </div>
             <p style={{ fontSize: "0.82rem", color: "var(--text-primary)", margin: "4px 0 0 0", fontStyle: "italic" }}>
               "{narasiBkn}"
@@ -676,9 +642,9 @@ export default function MonthlyReportGenerator({
             className="btn btn-sm"
             onClick={handleCopyNarasi}
             style={{
-              background: copiedNarasi ? "#10b981" : "#ffffff",
-              color: copiedNarasi ? "#ffffff" : "#1e293b",
-              border: "1px solid #cbd5e1",
+              background: copiedNarasi ? "var(--accent-primary)" : "var(--bg-primary)",
+              color: copiedNarasi ? "#ffffff" : "var(--text-primary)",
+              border: "1px solid var(--border-subtle)",
               fontSize: "0.78rem",
               fontWeight: "600"
             }}
@@ -700,31 +666,68 @@ export default function MonthlyReportGenerator({
           color: "#000000",
           fontFamily: "'Times New Roman', Times, serif",
           fontSize: "11pt",
-          lineHeight: "1.4",
+          lineHeight: "1.45",
           padding: "20mm 20mm",
-          boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-          borderRadius: "4px",
+          boxShadow: "0 2px 10px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)",
+          borderRadius: "8px",
+          border: "1px solid var(--border-subtle, #e2e8f0)",
           maxWidth: "210mm",
-          margin: "0 auto",
+          margin: "1.5rem auto 3rem auto",
           boxSizing: "border-box"
         }}
       >
-        {/* JUDUL LAPORAN */}
-        <div style={{ textAlign: "center", marginBottom: "20px" }}>
-          <h3 style={{ 
-            margin: 0, 
-            fontSize: "14pt", 
-            fontWeight: "bold", 
-            textTransform: "uppercase", 
-            textDecoration: "underline",
-            letterSpacing: "0.5px"
+        {/* JUDUL & KOP RESMI LAPORAN */}
+        {schoolLogo ? (
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "18px",
+            marginBottom: "20px",
+            borderBottom: "2px solid #000000",
+            paddingBottom: "14px"
           }}>
-            LAPORAN BULANAN KINERJA PEGAWAI
-          </h3>
-          <p style={{ margin: "4px 0 0 0", fontSize: "11pt", fontWeight: "bold" }}>
-            BULAN: {currentMonthData.monthObj.name.toUpperCase()} TAHUN {selectedYear}
-          </p>
-        </div>
+            <img 
+              src={schoolLogo} 
+              alt="Logo Instansi" 
+              style={{ width: "65px", height: "65px", objectFit: "contain", flexShrink: 0 }} 
+            />
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "11pt", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                {pegawai.unitKerja || schoolName || "SMAN GARUDA"}
+              </div>
+              <h3 style={{ 
+                margin: "3px 0 1px 0", 
+                fontSize: "13.5pt", 
+                fontWeight: "bold", 
+                textTransform: "uppercase", 
+                textDecoration: "underline",
+                letterSpacing: "0.5px"
+              }}>
+                LAPORAN BULANAN KINERJA PEGAWAI
+              </h3>
+              <p style={{ margin: "2px 0 0 0", fontSize: "10pt", fontWeight: "bold" }}>
+                BULAN: {currentMonthData.monthObj.name.toUpperCase()} TAHUN {selectedYear}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div style={{ textAlign: "center", marginBottom: "20px" }}>
+            <h3 style={{ 
+              margin: 0, 
+              fontSize: "14pt", 
+              fontWeight: "bold", 
+              textTransform: "uppercase", 
+              textDecoration: "underline",
+              letterSpacing: "0.5px"
+            }}>
+              LAPORAN BULANAN KINERJA PEGAWAI
+            </h3>
+            <p style={{ margin: "4px 0 0 0", fontSize: "11pt", fontWeight: "bold" }}>
+              BULAN: {currentMonthData.monthObj.name.toUpperCase()} TAHUN {selectedYear}
+            </p>
+          </div>
+        )}
 
         {/* BAGIAN I: DATA PEGAWAI */}
         <div style={{ marginBottom: "18px" }}>
