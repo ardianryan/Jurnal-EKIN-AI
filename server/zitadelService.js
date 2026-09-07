@@ -28,7 +28,7 @@ export function getZitadelConfig(storeSettings = {}) {
     clientId: (sso.clientId || process.env.ZITADEL_CLIENT_ID || "").trim(),
     clientSecret: (sso.clientSecret || process.env.ZITADEL_CLIENT_SECRET || "").trim(),
     buttonText: (sso.buttonText || process.env.ZITADEL_BUTTON_TEXT || "Masuk dengan SSO").trim(),
-    scopes: sso.scopes || "openid profile email urn:zitadel:iam:user:metadata",
+    scopes: sso.scopes || "openid profile email urn:zitadel:iam:user:metadata urn:zitadel:iam:org:project:roles",
     registrationMode: storeSettings.registrationPolicy?.mode || "open", // "open" | "closed"
     closedRegistrationUrl: storeSettings.registrationPolicy?.closedRegistrationUrl || "",
     closedRegistrationMessage: storeSettings.registrationPolicy?.closedRegistrationMessage || "Pendaftaran mandiri dinonaktifkan. Silakan daftar melalui portal resmi berikut:"
@@ -37,50 +37,116 @@ export function getZitadelConfig(storeSettings = {}) {
 
 /**
  * Validasi dan ekstraksi profil/metadata pengguna dari Zitadel
- * Otomatis menerima pengguna terautentikasi dan mengekstrak data identitas (NIP, NIK, Nama, Role)
+ * Strict Rules:
+ * - Wajib memiliki metadata peran sebagai 'guru' atau 'tendik' (atau superadmin)
+ * - Wajib memiliki NIP valid (minimal 8 digit angka)
+ * - Metadata kosong atau tidak memenuhi syarat DITOLAK
  */
 export function validateZitadelMetadata(rawMetadata = {}, userClaims = {}) {
-  // Normalisasi metadata kunci (case-insensitive / format base64)
+  // 1. Normalisasi metadata kunci (case-insensitive / format base64)
   const meta = {};
   if (typeof rawMetadata === "object" && rawMetadata !== null) {
     for (const [key, value] of Object.entries(rawMetadata)) {
       const cleanKey = String(key).toLowerCase().trim();
       let cleanVal = value;
       if (typeof value === "string") {
-        try {
-          const decoded = Buffer.from(value, "base64").toString("utf8");
-          if (decoded && /^[\x20-\x7E]+$/.test(decoded)) {
-            cleanVal = decoded;
-          }
-        } catch (e) {}
+        const trimmed = value.trim();
+        // Cek kemungkinan Base64
+        if (/^[A-Za-z0-9+/]+={0,2}$/.test(trimmed) && trimmed.length % 4 === 0) {
+          try {
+            const decoded = Buffer.from(trimmed, "base64").toString("utf8");
+            if (decoded && /^[\p{L}\p{N}\s\-.,_/:@()]+$/u.test(decoded)) {
+              cleanVal = decoded;
+            }
+          } catch (e) {}
+        }
       }
       meta[cleanKey] = cleanVal;
     }
   }
 
-  // Ekstrak Role jika ada (fallback ke pegawai jika tidak spesifik)
-  let role = String(meta.role || userClaims["urn:zitadel:iam:org:project:roles"] || userClaims.role || "pegawai").toLowerCase().trim();
-  if (role.includes("guru")) role = "guru";
-  else if (role.includes("tendik")) role = "tendik";
-  else if (role.includes("admin")) role = "superadmin";
-  else role = "pegawai";
+  // 2. Kumpulkan seluruh indikator peran/role
+  const roleCandidates = [];
 
-  // Ekstrak NIP jika ada
-  const rawNip = String(meta.nip || meta.nomor_induk || userClaims.nip || "").trim();
+  const checkAndPushRole = (val) => {
+    if (!val) return;
+    if (typeof val === "string") {
+      roleCandidates.push(val.toLowerCase().trim());
+    } else if (Array.isArray(val)) {
+      val.forEach(item => checkAndPushRole(item));
+    } else if (typeof val === "object") {
+      Object.keys(val).forEach(k => checkAndPushRole(k));
+      Object.values(val).forEach(v => {
+        if (typeof v === "string") checkAndPushRole(v);
+      });
+    }
+  };
+
+  // Periksa metadata
+  ["role", "roles", "tipe", "tipe_pegawai", "jenis", "jenis_ptk", "jenis_kepegawaian", "jabatan", "kategori", "kelompok", "group", "groups", "status"].forEach(k => {
+    if (meta[k]) checkAndPushRole(meta[k]);
+  });
+
+  // Periksa user claims Zitadel
+  if (userClaims["urn:zitadel:iam:org:project:roles"]) {
+    checkAndPushRole(userClaims["urn:zitadel:iam:org:project:roles"]);
+  }
+  if (userClaims.role) checkAndPushRole(userClaims.role);
+  if (userClaims.roles) checkAndPushRole(userClaims.roles);
+  if (userClaims.groups) checkAndPushRole(userClaims.groups);
+
+  let detectedRole = null;
+  if (roleCandidates.some(r => r.includes("guru") || r.includes("pendidik") || r.includes("pengajar"))) {
+    detectedRole = "guru";
+  } else if (roleCandidates.some(r => r.includes("tendik") || r.includes("kependidikan") || r.includes("tata usaha") || r.includes("tu") || r.includes("administrasi"))) {
+    detectedRole = "tendik";
+  } else if (roleCandidates.some(r => r === "superadmin" || r === "admin")) {
+    detectedRole = "superadmin";
+  }
+
+  // 3. Ekstrak NIP (Wajib ada dan valid minimal 8 digit)
+  let rawNip = "";
+  ["nip", "nomor_induk", "nip_baru", "nip_pegawai", "nip_guru", "nip_tendik"].forEach(k => {
+    if (!rawNip && meta[k]) rawNip = String(meta[k]).trim();
+  });
+  if (!rawNip && userClaims.nip) rawNip = String(userClaims.nip).trim();
+  if (!rawNip && userClaims.nomor_induk) rawNip = String(userClaims.nomor_induk).trim();
+
   const digitsOnlyNip = rawNip.replace(/\D/g, "");
+  const hasValidNip = Boolean(digitsOnlyNip && digitsOnlyNip.length >= 8);
+
+  // 4. Validasi Ketat: Hanya user dengan metadata guru / tendik DAN memiliki NIP yang diizinkan
+  let allowed = true;
+  let reason = "";
+
+  const hasValidRole = detectedRole === "guru" || detectedRole === "tendik" || detectedRole === "superadmin";
+
+  if (!hasValidRole && !hasValidNip) {
+    allowed = false;
+    reason = "Akses Ditolak: Akun Zitadel Anda tidak memiliki metadata profil yang dibutuhkan (Wajib memiliki metadata peran Guru/Tendik dan NIP terdaftar). Silakan hubungi Administrator untuk melengkapi metadata profil Anda di Zitadel.";
+  } else if (!hasValidRole) {
+    allowed = false;
+    reason = "Akses Ditolak: Akun Zitadel Anda tidak memiliki metadata peran resmi sebagai Guru atau Tenaga Kependidikan (Tendik). Hanya akun dengan metadata Guru atau Tendik yang diizinkan mengakses E-Kinerja.";
+  } else if (!hasValidNip) {
+    allowed = false;
+    reason = "Akses Ditolak: Akun Zitadel Anda belum memiliki NIP (Nomor Induk Pegawai) terdaftar. Hubungi Administrator untuk melengkapi metadata NIP Anda di Zitadel.";
+  }
 
   // Ekstrak NIK jika ada
   const rawNik = String(meta.nik || userClaims.nik || "").trim();
   const digitsOnlyNik = rawNik.replace(/\D/g, "");
 
   return {
-    allowed: true,
+    allowed,
+    reason,
     nip: digitsOnlyNip,
     nik: digitsOnlyNik,
-    role,
+    role: detectedRole || "pegawai",
     academicYearId: meta.academic_year_id || userClaims.academic_year_id || "",
     uuid: meta.uuid || userClaims.sub || "",
-    source: meta.source || "scholargate_sso"
+    source: meta.source || "scholargate_sso",
+    jabatan: meta.jabatan || (detectedRole === "guru" ? "Guru Mata Pelajaran" : (detectedRole === "tendik" ? "Tenaga Administrasi Sekolah" : "Pegawai")),
+    pangkat: meta.pangkat || ""
   };
 }
 
@@ -110,7 +176,7 @@ export function buildZitadelAuthorizeUrl(config, redirectUri) {
   const authUrl = new URL(`${cleanIssuer}/oauth/v2/authorize`);
   authUrl.searchParams.set("client_id", config.clientId);
   authUrl.searchParams.set("response_type", "code");
-  authUrl.searchParams.set("scope", config.scopes || "openid profile email urn:zitadel:iam:user:metadata");
+  authUrl.searchParams.set("scope", config.scopes || "openid profile email urn:zitadel:iam:user:metadata urn:zitadel:iam:org:project:roles");
   authUrl.searchParams.set("redirect_uri", redirectUri);
   authUrl.searchParams.set("state", state);
   authUrl.searchParams.set("nonce", nonce);

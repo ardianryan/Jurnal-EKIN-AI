@@ -523,6 +523,20 @@ const server = http.createServer(async (req, res) => {
         (validation.uuid && a.ssoUuid === validation.uuid)
       );
 
+      const isPreExistingSuperadmin = existing && existing.role === "superadmin";
+
+      // Validasi Ketat Metadata: Batasi hanya akun dengan peran Guru/Tendik DAN memiliki NIP
+      // Jika metadata kosong atau tidak memenuhi kriteria, TOLAK sebelum melakukan auto-register atau login!
+      if (!validation.allowed && !isPreExistingSuperadmin) {
+        console.warn(`⛔ [SSO Callback] Akses DITOLAK untuk pengguna Zitadel "${username}" (${namaLengkap}): ${validation.reason}`);
+        const publicBase = (process.env.APP_URL || "").trim().replace(/\/+$/, "");
+        const rejectTarget = `${publicBase}/#/login?error=${encodeURIComponent(validation.reason || "Akses Ditolak: Akun Anda tidak memiliki metadata Guru/Tendik dan NIP terdaftar.")}`;
+        res.statusCode = 302;
+        res.setHeader("Location", rejectTarget);
+        res.end();
+        return;
+      }
+
       if (existing) {
         console.log(`👤 [SSO Callback] Akun yang cocok ditemukan di database: ${existing.username} (ID: ${existing.id})`);
         if (userNip && !existing.nip) existing.nip = userNip;
@@ -530,11 +544,14 @@ const server = http.createServer(async (req, res) => {
         existing.ssoSource = validation.source;
         existing.ssoUuid = validation.uuid || existing.ssoUuid;
         existing.ssoRole = validation.role || existing.ssoRole;
+        if (validation.jabatan && (!existing.jabatan || existing.jabatan === "PENGADMINISTRASI PERKANTORAN")) {
+          existing.jabatan = validation.jabatan;
+        }
         if (!existing.nama || existing.nama === "Pegawai SSO") {
           existing.nama = namaLengkap;
         }
       } else {
-        console.log(`✨ [SSO Callback] Mendaftarkan akun baru secara otomatis: ${username} (Nama: ${namaLengkap})`);
+        console.log(`✨ [SSO Callback] Mendaftarkan akun baru secara otomatis: ${username} (Nama: ${namaLengkap}, Role: ${validation.role}, NIP: ${userNip})`);
         existing = {
           id: "usr-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
           username,
@@ -544,9 +561,10 @@ const server = http.createServer(async (req, res) => {
           nik: userNik,
           role: "pegawai",
           ssoRole: validation.role || "guru",
-          pangkat: "",
-          jabatan: "",
-          unitKerja: "",
+          pangkat: validation.pangkat || "Penata Muda / III/a",
+          jabatan: validation.jabatan || (validation.role === "guru" ? "Guru Mata Pelajaran" : "Tenaga Kependidikan"),
+          unitKerja: store.settings?.schoolName || "SMA Negeri 1 Gedeg",
+          allowEnvKey: true,
           ssoSource: validation.source,
           ssoUuid: validation.uuid,
           createdAt: new Date().toISOString()

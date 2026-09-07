@@ -18,7 +18,7 @@
 
 ### 2. Single Sign-On (Zitadel OIDC) Guidelines
 - Always support `APP_URL` and `ZITADEL_REDIRECT_URI` environment variables for computing canonical callback URIs behind reverse proxies (Nginx/Cloudflare/Portainer).
-- Do not reject valid authenticated Zitadel users even if custom metadata is missing or partial; auto-register them and let them complete profile onboarding.
+- **Strict Metadata Enforcement**: Strictly restrict SSO access and auto-registration ONLY to users possessing metadata role as `guru` or `tendik` AND having a valid registered `NIP` (min. 8 digits). Users with missing, empty, or non-matching metadata MUST be rejected before auto-registration with a clear error message.
 - The SSO button must remain positioned prominently at the top of the login options.
 
 ### 3. Database Auto-Migration & Auto-Seeding
