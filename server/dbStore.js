@@ -620,8 +620,17 @@ export function normalizeJournalAttachments(jrn) {
 export function getJournals(userId = null) {
   const store = getStore();
   const all = store.journals || [];
-  if (!userId) return all;
-  return all.filter(j => j.userId === userId || (!j.userId && userId === "usr-farras"));
+  const filtered = userId 
+    ? all.filter(j => j.userId === userId || (!j.userId && userId === "usr-farras"))
+    : all;
+
+  return [...filtered].sort((a, b) => {
+    const diffDate = String(b.tanggal || "").localeCompare(String(a.tanggal || ""));
+    if (diffDate !== 0) return diffDate;
+    const timeA = String(a.createdAt || a.id || "");
+    const timeB = String(b.createdAt || b.id || "");
+    return timeB.localeCompare(timeA);
+  });
 }
 
 export function addJournal(journalData) {

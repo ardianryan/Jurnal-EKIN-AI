@@ -367,8 +367,8 @@ export async function loadStoreFromMysql() {
         updatedAt: r.updated_at
       }));
 
-      // Ambil Journals
-      const [jrnRows] = await conn.query("SELECT * FROM journals ORDER BY tanggal ASC");
+      // Ambil Journals (Urutkan kronologis menurun agar jurnal terbaru selalu di atas)
+      const [jrnRows] = await conn.query("SELECT * FROM journals ORDER BY tanggal DESC, created_at DESC");
       const journals = jrnRows.map(r => {
         let atts = [];
         try {
