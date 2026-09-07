@@ -44,6 +44,10 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.5-flash-lite}
 
+      # Domain Publik / Canonical App URL (Mencegah mismatch redirect URI Zitadel)
+      - APP_URL=${APP_URL:-https://akin.sman1gedeg.sch.id}
+      - ZITADEL_REDIRECT_URI=${ZITADEL_REDIRECT_URI:-}
+
       # SSO Zitadel OIDC (Opsional)
       - ZITADEL_ISSUER=${ZITADEL_ISSUER:-}
       - ZITADEL_CLIENT_ID=${ZITADEL_CLIENT_ID:-}

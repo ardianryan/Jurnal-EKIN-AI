@@ -1158,7 +1158,7 @@ export default function SettingsSection({
                           <input
                             type="text"
                             readOnly
-                            value={typeof window !== "undefined" ? `${window.location.origin}/api/auth/sso/zitadel/callback` : "/api/auth/sso/zitadel/callback"}
+                            value={ssoForm?.redirectUri || (typeof window !== "undefined" ? `${window.location.origin}/api/auth/sso/zitadel/callback` : "/api/auth/sso/zitadel/callback")}
                             className="input-field"
                             style={{ margin: 0, fontFamily: "monospace", fontSize: "0.8rem", background: "var(--bg-surface)", fontWeight: "600", color: "#2563eb" }}
                           />
@@ -1166,7 +1166,7 @@ export default function SettingsSection({
                             type="button"
                             className="btn btn-secondary btn-sm"
                             onClick={() => {
-                              const val = `${window.location.origin}/api/auth/sso/zitadel/callback`;
+                              const val = ssoForm?.redirectUri || `${window.location.origin}/api/auth/sso/zitadel/callback`;
                               navigator.clipboard.writeText(val);
                               setNotification({ type: "success", text: "Redirect URI Callback berhasil disalin ke clipboard!" });
                             }}
@@ -1188,7 +1188,7 @@ export default function SettingsSection({
                           <input
                             type="text"
                             readOnly
-                            value={typeof window !== "undefined" ? `${window.location.origin}/#/login` : "/#/login"}
+                            value={ssoForm?.redirectUri ? ssoForm.redirectUri.replace(/\/api\/auth\/sso\/zitadel\/callback$/, "/#/login") : (typeof window !== "undefined" ? `${window.location.origin}/#/login` : "/#/login")}
                             className="input-field"
                             style={{ margin: 0, fontFamily: "monospace", fontSize: "0.8rem", background: "var(--bg-surface)", fontWeight: "600", color: "var(--text-primary)" }}
                           />
@@ -1196,7 +1196,7 @@ export default function SettingsSection({
                             type="button"
                             className="btn btn-secondary btn-sm"
                             onClick={() => {
-                              const val = `${window.location.origin}/#/login`;
+                              const val = ssoForm?.redirectUri ? ssoForm.redirectUri.replace(/\/api\/auth\/sso\/zitadel\/callback$/, "/#/login") : `${window.location.origin}/#/login`;
                               navigator.clipboard.writeText(val);
                               setNotification({ type: "success", text: "Post Logout Redirect URI berhasil disalin ke clipboard!" });
                             }}

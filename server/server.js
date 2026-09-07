@@ -346,12 +346,23 @@ const server = http.createServer(async (req, res) => {
   if (pathname === "/api/auth/sso/config") {
     const store = getStore();
     const config = getZitadelConfig(store.settings || {});
+
+    // Hitung canonical redirect URI yang berlaku di server
+    let redirectUri = process.env.ZITADEL_REDIRECT_URI;
+    if (!redirectUri) {
+      const appUrl = (process.env.APP_URL || "").trim().replace(/\/+$/, "");
+      if (appUrl) {
+        redirectUri = `${appUrl}/api/auth/sso/zitadel/callback`;
+      }
+    }
+
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify({
       enabled: config.enabled,
       buttonText: config.buttonText,
       issuer: config.issuer ? "configured" : "",
+      redirectUri: redirectUri || "",
       registrationMode: config.registrationMode,
       closedRegistrationUrl: config.closedRegistrationUrl,
       closedRegistrationMessage: config.closedRegistrationMessage
@@ -373,19 +384,25 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      // Deteksi host dan proto yang robust (mendukung reverse proxy Nginx / Cloudflare / Portainer)
-      let proto = req.headers["x-forwarded-proto"] || "http";
-      if (proto.includes(",")) proto = proto.split(",")[0].trim();
+      // Deteksi host dan proto yang robust (mendukung reverse proxy Nginx / Cloudflare / Portainer / Domain Kustom)
+      let redirectUri = process.env.ZITADEL_REDIRECT_URI;
+      if (!redirectUri) {
+        const appUrl = (process.env.APP_URL || "").trim().replace(/\/+$/, "");
+        if (appUrl) {
+          redirectUri = `${appUrl}/api/auth/sso/zitadel/callback`;
+        } else {
+          let proto = req.headers["x-forwarded-proto"] || "http";
+          if (proto.includes(",")) proto = proto.split(",")[0].trim();
 
-      let host = req.headers["x-forwarded-host"] || req.headers.host || `localhost:${PORT}`;
-      if (host.includes(",")) host = host.split(",")[0].trim();
+          let host = req.headers["x-forwarded-host"] || req.headers.host || `localhost:${PORT}`;
+          if (host.includes(",")) host = host.split(",")[0].trim();
 
-      // Jika diakses via domain publik tanpa port, pastikan protokol mengikuti https jika x-forwarded-ssl atau https
-      if (req.headers["x-forwarded-ssl"] === "on" || req.headers["front-end-https"] === "on") {
-        proto = "https";
+          if (req.headers["x-forwarded-ssl"] === "on" || req.headers["front-end-https"] === "on") {
+            proto = "https";
+          }
+          redirectUri = `${proto}://${host}/api/auth/sso/zitadel/callback`;
+        }
       }
-
-      const redirectUri = `${proto}://${host}/api/auth/sso/zitadel/callback`;
 
       const { url } = buildZitadelAuthorizeUrl(config, redirectUri);
       res.statusCode = 302;
@@ -429,18 +446,26 @@ const server = http.createServer(async (req, res) => {
     try {
       const store = getStore();
       const config = getZitadelConfig(store.settings || {});
-      // Deteksi host dan proto yang robust (mendukung reverse proxy Nginx / Cloudflare / Portainer)
-      let proto = req.headers["x-forwarded-proto"] || "http";
-      if (proto.includes(",")) proto = proto.split(",")[0].trim();
 
-      let host = req.headers["x-forwarded-host"] || req.headers.host || `localhost:${PORT}`;
-      if (host.includes(",")) host = host.split(",")[0].trim();
+      // Deteksi host dan proto yang robust (mendukung reverse proxy Nginx / Cloudflare / Portainer / Domain Kustom)
+      let redirectUri = process.env.ZITADEL_REDIRECT_URI;
+      if (!redirectUri) {
+        const appUrl = (process.env.APP_URL || "").trim().replace(/\/+$/, "");
+        if (appUrl) {
+          redirectUri = `${appUrl}/api/auth/sso/zitadel/callback`;
+        } else {
+          let proto = req.headers["x-forwarded-proto"] || "http";
+          if (proto.includes(",")) proto = proto.split(",")[0].trim();
 
-      if (req.headers["x-forwarded-ssl"] === "on" || req.headers["front-end-https"] === "on") {
-        proto = "https";
+          let host = req.headers["x-forwarded-host"] || req.headers.host || `localhost:${PORT}`;
+          if (host.includes(",")) host = host.split(",")[0].trim();
+
+          if (req.headers["x-forwarded-ssl"] === "on" || req.headers["front-end-https"] === "on") {
+            proto = "https";
+          }
+          redirectUri = `${proto}://${host}/api/auth/sso/zitadel/callback`;
+        }
       }
-
-      const redirectUri = `${proto}://${host}/api/auth/sso/zitadel/callback`;
 
       const { userInfo, metadata } = await exchangeZitadelCode(code, state, config, redirectUri);
 
