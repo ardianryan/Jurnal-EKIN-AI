@@ -1537,7 +1537,14 @@ export async function handleJournals(botInstance, msg) {
     );
   }
 
-  const recent = journals.slice(0, 5);
+  // Ambil 5 jurnal terbaru, lalu susun urutannya dari terlama ke terbaru
+  const recent = journals.slice(0, 5).sort((a, b) => {
+    const diffDate = String(a.tanggal || "").localeCompare(String(b.tanggal || ""));
+    if (diffDate !== 0) return diffDate;
+    const timeA = String(a.createdAt || a.id || "");
+    const timeB = String(b.createdAt || b.id || "");
+    return timeA.localeCompare(timeB);
+  });
   let text = `📝 *5 Jurnal Terakhir Anda:*\n\n`;
 
   recent.forEach((j, idx) => {

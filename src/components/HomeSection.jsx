@@ -36,7 +36,12 @@ export default function HomeSection({
     if (diffDate !== 0) return diffDate;
     return String(b.createdAt || b.id || "").localeCompare(String(a.createdAt || a.id || ""));
   });
-  const recentJournals = sortedJournals.slice(0, 5);
+  // Ambil 5 jurnal terbaru, lalu susun dari terlama ke terbaru
+  const recentJournals = sortedJournals.slice(0, 5).sort((a, b) => {
+    const diffDate = String(a.tanggal || "").localeCompare(String(b.tanggal || ""));
+    if (diffDate !== 0) return diffDate;
+    return String(a.createdAt || a.id || "").localeCompare(String(b.createdAt || b.id || ""));
+  });
 
   return (
     <div style={{ maxWidth: "1080px", margin: "0 auto", paddingBottom: "2rem" }}>
