@@ -855,10 +855,10 @@ export default function HomeSection({
                             cursor: "pointer",
                             transition: "all 0.15s ease"
                           }}
-                          title="Buka folder Google Drive"
+                          title="Buka tautan link"
                         >
                           <Link2 size={12} />
-                          <span>Google Drive</span>
+                          <span>Link</span>
                           <ExternalLink size={10} />
                         </a>
                       )}

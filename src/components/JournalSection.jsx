@@ -1475,9 +1475,9 @@ export default function JournalSection({
                           gap: "4px",
                           textDecoration: "none"
                         }}
-                        title="Buka folder Google Drive"
+                        title="Buka tautan link"
                       >
-                        <Link2 size={11} /> <span>Google Drive</span> <ExternalLink size={10} />
+                        <Link2 size={11} /> <span>Link</span> <ExternalLink size={10} />
                       </a>
                     )}
                   </div>

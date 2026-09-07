@@ -560,6 +560,9 @@ export function cleanDuplicatePhrases(str) {
   cleaned = cleaned.replace(/([A-Za-z0-9\s]+?)\s*\(\s*\1\s*\)/gi, "$1");
   cleaned = cleaned.replace(/\(([^()]+)\s*\(\1\)\)/gi, "($1)");
 
+  // 5. Bersihkan kata sambung/preposisi menggantung di akhir kalimat sebelum tanda baca (misal: "...bukti di." -> "...bukti.")
+  cleaned = cleaned.replace(/\s+\b(di|pada|ke|melalui|lewat|link|tautan|url)\s*([.,;:]|$)/gi, "$2");
+
   return cleaned.trim();
 }
 

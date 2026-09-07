@@ -136,7 +136,10 @@ export function extractUrl(text) {
   const match = text.match(urlRegex);
   if (match && match.length > 0) {
     const url = match[0];
-    const cleanText = text.replace(url, "").trim();
+    let cleanText = text.replace(url, "").trim();
+    // Bersihkan kata penghubung/preposisi menggantung di akhir teks sebelum URL
+    cleanText = cleanText.replace(/\s+\b(di|pada|ke|melalui|lewat|link|tautan|linknya|url|drive|gdrive)\s*$/gi, "").trim();
+    cleanText = cleanText.replace(/[,.:;\s]+$/, "").trim();
     return { url, cleanText: cleanText || "Melaksanakan kegiatan kedinasan operasional" };
   }
   return { url: null, cleanText: text };
@@ -2313,9 +2316,9 @@ export async function handleIncomingText(botInstance, msg) {
     }
 
     if (detectedUrl) {
-      reply += `🔗 *Tautan Drive*: ${detectedUrl}\n`;
+      reply += `🔗 *Tautan Link*: ${detectedUrl}\n`;
     } else if (newEntry.linkUrl && !firstAtt) {
-      reply += `🔗 *Tautan Eviden*: [Klik Google Drive](${newEntry.linkUrl})\n`;
+      reply += `🔗 *Tautan Link*: [Buka Link](${newEntry.linkUrl})\n`;
     }
 
     reply += `\n🔍 _Input Kasaran: "${cleanText}"_\n` +
@@ -2750,7 +2753,7 @@ async function handleIncomingAttachment(botInstance, msg, item) {
       reply += `📎 *Tautan Berkas Aplikasi*: ${item.fileUrl}\n`;
     }
     if (detectedUrl) {
-      reply += `🔗 *Tautan Drive*: ${detectedUrl}\n`;
+      reply += `🔗 *Tautan Link*: ${detectedUrl}\n`;
     }
 
     reply += `\nSilakan pilih menu di bawah atau ketik aktivitas lainnya:`;
