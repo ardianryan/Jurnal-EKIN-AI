@@ -578,7 +578,10 @@ export default function PegawaiSection({
               </div>
 
               {/* Tabel Akun */}
-              <div style={{ border: "1px solid var(--border-subtle)", borderRadius: "8px", overflowX: "auto" }}>
+              <div className="table-scroll-hint">
+                <span>👈 Geser tabel pegawai ke samping untuk melihat kolom lengkap 👉</span>
+              </div>
+              <div className="table-responsive">
                 <table style={{ width: "100%", minWidth: "680px", borderCollapse: "collapse", fontSize: "0.84rem", textAlign: "left" }}>
                   <thead>
                     <tr style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border-subtle)" }}>
@@ -823,7 +826,10 @@ export default function PegawaiSection({
               </div>
 
               {/* Tabel Kode Aktif */}
-              <div style={{ border: "1px solid var(--border-subtle)", borderRadius: "8px", overflowX: "auto" }}>
+              <div className="table-scroll-hint">
+                <span>👈 Geser tabel kode registrasi ke samping 👉</span>
+              </div>
+              <div className="table-responsive">
                 <table style={{ width: "100%", minWidth: "640px", borderCollapse: "collapse", fontSize: "0.82rem", textAlign: "left" }}>
                   <thead>
                     <tr style={{ background: "var(--bg-secondary)", borderBottom: "1px solid var(--border-subtle)" }}>

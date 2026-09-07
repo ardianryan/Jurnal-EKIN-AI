@@ -380,13 +380,17 @@ export default function PenilaianSection({
               </div>
 
               {/* Kotak Evaluasi & Action Buttons (Sesuai 100% Kotak BKN) */}
-              <div style={{ 
+              <div className="table-scroll-hint">
+                <span>👈 Geser matriks penilaian BKN ke samping 👉</span>
+              </div>
+              <div className="table-responsive" style={{ 
                 borderTop: "1px solid #cbd5e1", 
                 overflowX: "auto",
                 background: "#ffffff"
               }}>
                 <table style={{ 
                   width: "100%", 
+                  minWidth: "760px",
                   borderCollapse: "collapse", 
                   fontSize: "0.88rem", 
                   textAlign: "center" 

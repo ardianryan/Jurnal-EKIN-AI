@@ -818,7 +818,7 @@ export default function JournalSection({
               </div>
 
               {/* Daftar Chips Contoh Kalimat Kasaran */}
-              <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", flexWrap: "wrap" }}>
+              <div className="casual-examples-scroll">
                 {casualData.examples.slice(0, 6).map((sample, sIdx) => (
                   <button
                     key={sIdx}
@@ -1143,6 +1143,12 @@ export default function JournalSection({
               <span>Tulis Jurnal Baru</span>
             </button>
           </div>
+
+          <div className="table-scroll-hint">
+            <span>👈 Geser baris aktivitas ke samping untuk melihat rincian &amp; tombol aksi 👉</span>
+          </div>
+
+          <div className="journal-list-scroll-wrapper">
           {journals
             .filter((j) => {
               if (!searchQuery || !searchQuery.trim()) return true;
@@ -1168,6 +1174,7 @@ export default function JournalSection({
             return (
               <div 
                 key={j.id || index}
+                className="journal-entry-card"
                 style={{
                   background: editingId === j.id ? "var(--accent-emerald-subtle)" : "var(--bg-secondary)",
                   border: editingId === j.id ? "1.5px solid var(--accent-primary)" : "1px solid var(--border-subtle)",
@@ -1176,7 +1183,6 @@ export default function JournalSection({
                   display: "flex",
                   alignItems: "center",
                   gap: "1rem",
-                  flexWrap: "wrap",
                   transition: "background var(--transition-fast), border-color var(--transition-fast)"
                 }}
               >
@@ -1393,6 +1399,7 @@ export default function JournalSection({
               </div>
             );
           })}
+          </div>
         </div>
       )}
 

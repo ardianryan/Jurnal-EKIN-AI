@@ -213,8 +213,12 @@ export default function RhKTable({
           </button>
         </div>
       ) : (
-        <div className="table-responsive">
-          <table className="skp-table">
+        <>
+          <div className="table-scroll-hint">
+            <span>👈 Geser tabel ke samping untuk melihat kolom lengkap 👉</span>
+          </div>
+          <div className="table-responsive">
+            <table className="skp-table">
             <thead>
               {isKualitatif ? (
                 /* Header Pendekatan Kualitatif */
@@ -273,6 +277,7 @@ export default function RhKTable({
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );

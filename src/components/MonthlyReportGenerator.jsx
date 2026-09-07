@@ -460,7 +460,7 @@ export default function MonthlyReportGenerator({
           </div>
 
           {/* Tombol Aksi Utama Cetak PDF & Edit Identitas */}
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <div className="report-action-buttons-strip">
             {setPegawai && (
               <button
                 type="button"
@@ -527,15 +527,7 @@ export default function MonthlyReportGenerator({
         </div>
 
         {/* Pilihan Periode Bulan & Google Drive Sync */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1.25fr",
-          gap: "1.25rem",
-          background: "var(--bg-tertiary)",
-          padding: "1.25rem",
-          borderRadius: "var(--radius-md)",
-          border: "1px solid var(--border-subtle)"
-        }}>
+        <div className="report-controls-grid">
           {/* 1. Pilih Bulan Laporan */}
           <div className="form-group" style={{ margin: 0, justifyContent: "space-between" }}>
             <div>
@@ -658,8 +650,12 @@ export default function MonthlyReportGenerator({
       {/* ========================================================================= */}
       {/* TAMPILAN DOKUMEN RESMI A4 (DICETAK ATAU DIPRINT KE PDF) */}
       {/* ========================================================================= */}
-      <div 
-        id="monthly-report-sheet"
+      <div className="table-scroll-hint no-print">
+        <span>👈 Geser lembar laporan ke samping untuk melihat halaman A4 penuh 👉</span>
+      </div>
+      <div className="report-sheet-scroll-container">
+        <div 
+          id="monthly-report-sheet"
         className="print-sheet"
         style={{
           background: "#ffffff",
@@ -965,6 +961,7 @@ export default function MonthlyReportGenerator({
             </a>
           </div>
         )}
+        </div>
       </div>
 
       {/* Modal Edit Identitas Pegawai */}
