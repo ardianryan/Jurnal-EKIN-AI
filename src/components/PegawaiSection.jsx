@@ -182,18 +182,28 @@ export default function PegawaiSection({
     }
   };
 
-  const handleDeleteAccount = (acc) => {
+  const handleDeleteAccount = async (acc) => {
     if (acc.id === currentUser?.id) {
       alert("Anda sedang login menggunakan akun ini! Tidak dapat menghapus akun yang sedang aktif.");
       return;
     }
-    if (window.confirm(`Yakin ingin menghapus akun pegawai "${acc.nama}" (${acc.username})? Data jurnal pegawai ini di perangkat ini akan tetap tersimpan.`)) {
-      const updated = deleteAccount(acc.id);
-      setAccounts(updated);
-      setNotification({
-        type: "success",
-        text: `Akun "${acc.nama}" berhasil dihapus.`
-      });
+    if (window.confirm(`Yakin ingin menghapus akun pegawai "${acc.nama}" (${acc.username})? Seluruh data jurnal dan berkas eviden pegawai ini akan dihapus dari sistem.`)) {
+      try {
+        const updated = await deleteAccount(acc.id);
+        const nextAccounts = Array.isArray(updated) ? updated : getAccounts();
+        setAccounts(nextAccounts);
+        setNotification({
+          type: "success",
+          text: `Akun "${acc.nama}" berhasil dihapus.`
+        });
+      } catch (err) {
+        console.error("Gagal menghapus akun:", err);
+        setNotification({
+          type: "error",
+          text: err.message || "Gagal menghapus akun pegawai."
+        });
+        alert(err.message || "Gagal menghapus akun pegawai.");
+      }
     }
   };
 
@@ -391,7 +401,9 @@ export default function PegawaiSection({
   };
 
   // Filter pencarian
-  const filteredAccounts = accounts.filter(a => {
+  const safeAccounts = Array.isArray(accounts) ? accounts : [];
+  const filteredAccounts = safeAccounts.filter(a => {
+    if (!a) return false;
     const q = searchQuery.toLowerCase();
     return (
       a.nama?.toLowerCase().includes(q) ||
@@ -486,7 +498,7 @@ export default function PegawaiSection({
               style={{ fontWeight: "600" }}
             >
               <Users size={14} />
-              <span>Daftar Pegawai ({accounts.length})</span>
+              <span>Daftar Pegawai ({safeAccounts.length})</span>
             </button>
 
             <button
