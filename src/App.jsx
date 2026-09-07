@@ -70,7 +70,13 @@ export default function App() {
   const fetchAndSyncJournals = useCallback(async (isManual = false) => {
     try {
       setIsSyncing(true);
-      const res = await syncWithBackend();
+      let localToPush = [];
+      try {
+        const raw = localStorage.getItem("ekinerja_journals");
+        localToPush = raw ? JSON.parse(raw) : [];
+      } catch (e) {}
+
+      const res = await syncWithBackend(localToPush);
       if (res) {
         if (res.botConfig) {
           setBotConfig(res.botConfig);

@@ -732,10 +732,23 @@ const server = http.createServer(async (req, res) => {
         }
       });
 
-      req.on("end", () => {
+      req.on("end", async () => {
         if (isTooLarge) return;
         try {
           const incoming = JSON.parse(body);
+
+          // Jika database aktif (MySQL / PostgreSQL), muat data terbaru dari DB dulu
+          if (getActiveDbType() !== "json") {
+            try {
+              const remoteStore = await loadStoreFromDatabase();
+              if (remoteStore) {
+                setCachedStore(remoteStore);
+              }
+            } catch (dbErr) {
+              console.warn("Sinkronisasi database sebelum merge gagal:", dbErr.message);
+            }
+          }
+
           const store = getStore();
 
           if (Array.isArray(incoming.accounts)) {
@@ -763,8 +776,23 @@ const server = http.createServer(async (req, res) => {
 
           saveStore(store);
 
+          const accounts = (store.accounts || []).map(sanitizeUser);
+          const journals = [...(store.journals || [])].sort((a, b) => {
+            const diffDate = String(b.tanggal || "").localeCompare(String(a.tanggal || ""));
+            if (diffDate !== 0) return diffDate;
+            return String(b.createdAt || b.id || "").localeCompare(String(a.createdAt || a.id || ""));
+          });
+
           res.setHeader("Content-Type", "application/json");
-          res.end(JSON.stringify({ success: true, count: store.accounts?.length }));
+          res.end(JSON.stringify({ 
+            success: true, 
+            accounts,
+            journals,
+            botConfig: getBotConfig(),
+            aiConfig: getAiConfig(),
+            count: store.accounts?.length,
+            timestamp: new Date().toISOString()
+          }));
         } catch (err) {
           res.statusCode = 500;
           res.setHeader("Content-Type", "application/json");
