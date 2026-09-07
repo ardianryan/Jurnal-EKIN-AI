@@ -82,12 +82,15 @@ export default function JournalSection({
 
         // 1. Coba Presigned Token Upload ke R2
         try {
+          const uploadBlob = processed.blob || file;
+          const uploadContentType = processed.category === "image" ? "image/jpeg" : (file.type || "application/octet-stream");
+
           const presignRes = await fetch("/api/upload/presign", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               fileName: processed.name || file.name,
-              fileType: file.type || (processed.category === "image" ? "image/jpeg" : "application/octet-stream"),
+              fileType: uploadContentType,
               tanggal: formData.tanggal || new Date().toISOString().slice(0, 10)
             })
           });
@@ -95,13 +98,13 @@ export default function JournalSection({
           if (presignRes.ok) {
             const presignData = await presignRes.json();
             if (presignData.success && presignData.presignedUrl) {
-              // Upload langsung dari browser ke R2 via PUT (Streaming biner murni, tidak membebani server)
+              // Upload langsung dari browser ke R2 via PUT (Streaming biner hasil kompresi browser, sangat hemat kuota & RAM)
               const putRes = await fetch(presignData.presignedUrl, {
                 method: "PUT",
                 headers: {
-                  "Content-Type": file.type || (processed.category === "image" ? "image/jpeg" : "application/octet-stream")
+                  "Content-Type": uploadContentType
                 },
-                body: file
+                body: uploadBlob
               });
 
               if (putRes.ok) {

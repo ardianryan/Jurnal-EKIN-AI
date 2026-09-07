@@ -46,18 +46,23 @@ export function processEvidenceFile(file) {
 
           // Hitung ukuran nyata setelah kompresi
           const head = "data:image/jpeg;base64,";
-          const compressedBytes = Math.round((compressedDataUrl.length - head.length) * 3 / 4);
-          const finalSizeFormatted = formatBytes(compressedBytes);
+          const fallbackBytes = Math.round((compressedDataUrl.length - head.length) * 3 / 4);
 
-          resolve({
-            category: "image",
-            type: fileType,
-            name: fileName.replace(/\.[^/.]+$/, "") + ".jpg",
-            originalSize: fileSizeFormatted,
-            size: finalSizeFormatted,
-            compressed: true,
-            dataUrl: compressedDataUrl
-          });
+          canvas.toBlob((blob) => {
+            const finalBytes = blob ? blob.size : fallbackBytes;
+            const finalSizeFormatted = formatBytes(finalBytes);
+
+            resolve({
+              category: "image",
+              type: fileType,
+              name: fileName.replace(/\.[^/.]+$/, "") + ".jpg",
+              originalSize: fileSizeFormatted,
+              size: finalSizeFormatted,
+              compressed: true,
+              dataUrl: compressedDataUrl,
+              blob: blob || file
+            });
+          }, "image/jpeg", 0.75);
         };
         img.onerror = (err) => reject(err);
       };
@@ -74,7 +79,8 @@ export function processEvidenceFile(file) {
             type: fileType,
             name: fileName,
             size: fileSizeFormatted,
-            dataUrl: reader.result
+            dataUrl: reader.result,
+            blob: file
           });
         };
         reader.onerror = (err) => reject(err);
@@ -85,7 +91,8 @@ export function processEvidenceFile(file) {
           type: fileType,
           name: fileName,
           size: fileSizeFormatted,
-          dataUrl: null
+          dataUrl: null,
+          blob: file
         });
       }
     }
