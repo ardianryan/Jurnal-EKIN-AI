@@ -157,17 +157,27 @@ const getAiConfig = () => {
     .trim().replace(/^["']|["']$/g, "").trim();
   const hasGeminiEnv = Boolean(rawGeminiKey && !rawGeminiKey.includes("PASTE_HERE") && rawGeminiKey.length > 10);
 
-  let provider = savedAi.provider || envProvider || (hasOpenAiEnv ? "openai" : "gemini");
+  let provider = savedAi.provider || envProvider;
+  if (!provider) {
+    provider = (hasOpenAiEnv && !hasGeminiEnv) ? "openai" : "gemini";
+  } else if (provider === "gemini" && !hasGeminiEnv && hasOpenAiEnv) {
+    // Auto-detect: User membiarkan AI_PROVIDER=gemini tapi mengisi kunci OPENAI_API_KEY (9router)
+    provider = "openai";
+  } else if (provider === "openai" && !hasOpenAiEnv && hasGeminiEnv) {
+    // Auto-detect: User memilih AI_PROVIDER=openai tapi mengisi kunci GEMINI_API_KEY
+    provider = "gemini";
+  }
+
   let baseUrl = savedAi.baseUrl || process.env.OPENAI_BASE_URL || process.env.AI_BASE_URL || "https://api.9router.com/v1";
   let model = savedAi.model || (provider === "openai" ? (process.env.OPENAI_MODEL || process.env.AI_MODEL || "openai/gpt-4o-mini") : (process.env.GEMINI_MODEL || "gemini-3.5-flash-lite"));
   let hasServerKey = false;
 
   if (provider === "openai") {
     const rawKey = (savedAi.apiKey || process.env.OPENAI_API_KEY || process.env.AI_API_KEY || "").trim();
-    hasServerKey = Boolean(rawKey && rawKey.length > 5);
+    hasServerKey = Boolean(rawKey && rawKey.length > 5 && !["e.g. bar", "undefined", "null"].includes(rawKey.toLowerCase()));
   } else {
     const rawKey = (savedAi.apiKey || rawGeminiKey).trim();
-    hasServerKey = Boolean(rawKey && !rawKey.includes("PASTE_HERE") && rawKey.length > 10);
+    hasServerKey = Boolean(rawKey && !rawKey.includes("PASTE_HERE") && rawKey.length > 10 && !["e.g. bar", "undefined", "null"].includes(rawKey.toLowerCase()));
   }
 
   return {
