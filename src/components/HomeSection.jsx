@@ -21,10 +21,22 @@ export default function HomeSection({
   onOpenAccountManagerModal,
   botConfig = { enabled: false, username: "" }
 }) {
-  const totalJournals = journals.length;
-  const totalPhotos = journals.filter(j => j.fotoUrl || j.fileName).length;
-  const totalLinks = journals.filter(j => j.linkUrl || j.driveLink).length;
-  const recentJournals = [...journals].slice(-3).reverse();
+  const isSuperadmin = currentUser?.role === "superadmin";
+  const userJournals = isSuperadmin 
+    ? journals 
+    : journals.filter(j => j.userId === currentUser?.id || (!j.userId && (currentUser?.username === "farras" || currentUser?.id === "usr-farras")));
+  
+  const displayJournals = userJournals.length > 0 ? userJournals : journals;
+  const totalJournals = displayJournals.length;
+  const totalPhotos = displayJournals.filter(j => j.fotoUrl || j.fileName || (Array.isArray(j.attachments) && j.attachments.some(a => a.type === "image"))).length;
+  const totalLinks = displayJournals.filter(j => j.linkUrl || j.driveLink).length;
+
+  const sortedJournals = [...displayJournals].sort((a, b) => {
+    const diffDate = String(b.tanggal || "").localeCompare(String(a.tanggal || ""));
+    if (diffDate !== 0) return diffDate;
+    return String(b.createdAt || b.id || "").localeCompare(String(a.createdAt || a.id || ""));
+  });
+  const recentJournals = sortedJournals.slice(0, 5);
 
   return (
     <div style={{ maxWidth: "1080px", margin: "0 auto", paddingBottom: "2rem" }}>
