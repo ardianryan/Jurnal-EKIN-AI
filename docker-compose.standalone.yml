@@ -1,0 +1,53 @@
+version: '3.8'
+
+# Stack Mandiri Lengkap (Aplikasi + Kontainer PostgreSQL Lokal)
+services:
+  app:
+    image: ${DOCKER_IMAGE:-ghcr.io/ardianryan/jurnal-ekin-ai:smansage}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ekinerja-ai
+    restart: always
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - TZ=Asia/Jakarta
+      - DB_TYPE=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-ekinerja_smansage}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-rahasia123}
+    volumes:
+      - ekinerja_data:/app/database
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: ekinerja-db
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME:-ekinerja_smansage}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-rahasia123}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-ekinerja_smansage}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  ekinerja_data:
+  pgdata:

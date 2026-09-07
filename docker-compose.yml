@@ -2,68 +2,33 @@ version: '3.8'
 
 services:
   app:
+    # Menggunakan GHCR image resmi siap pakai atau build lokal dari Dockerfile
+    image: ${DOCKER_IMAGE:-ghcr.io/ardianryan/jurnal-ekin-ai:smansage}
     build:
       context: .
       dockerfile: Dockerfile
     container_name: ekinerja-ai
     restart: always
     ports:
-      - "3000:3000"
+      - "${APP_PORT:-3000}:3000"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
       - PORT=3000
       - HOST=0.0.0.0
       - TZ=Asia/Jakarta
-      # Pengaturan Database (Opsional jika pakai DB eksternal / Postgres service)
+      # Kredensial Database PostgreSQL diambil dinamis dari .env (bebas hardcode)
       - DB_TYPE=${DB_TYPE:-postgres}
-      - DB_HOST=${DB_HOST:-postgres}
+      - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-ekinerja_smansage}
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-rahasia123}
-      # Cloudflare R2 / S3 Storage Presigned URL
-      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID:-}
-      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY:-}
-      - R2_ENDPOINT=${R2_ENDPOINT:-}
-      - R2_BUCKET_NAME=${R2_BUCKET_NAME:-}
-      - R2_FOLDER_PATH=${R2_FOLDER_PATH:-ekinsmansage}
-      - R2_PUBLIC_URL=${R2_PUBLIC_URL:-}
-      - R2_REGION=${R2_REGION:-auto}
-      - R2_USE_PATH_STYLE_ENDPOINT=${R2_USE_PATH_STYLE_ENDPOINT:-true}
-      # Telegram Bot & AI Gemini
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.5-flash-lite}
-      # SSO Zitadel
-      - ZITADEL_ISSUER=${ZITADEL_ISSUER:-}
-      - ZITADEL_CLIENT_ID=${ZITADEL_CLIENT_ID:-}
-      - ZITADEL_CLIENT_SECRET=${ZITADEL_CLIENT_SECRET:-}
-      - ZITADEL_BUTTON_TEXT=${ZITADEL_BUTTON_TEXT:-Masuk dengan SSO}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DATABASE_URL=${DATABASE_URL:-}
     volumes:
-      # Volume persisten lokal untuk database JSON/SQLite atau backup uploads lokal
+      # Volume data persisten kontainer untuk cache JSON, sesi & backup
       - ekinerja_data:/app/database
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  postgres:
-    image: postgres:16-alpine
-    container_name: ekinerja-db
-    restart: always
-    environment:
-      POSTGRES_DB: ${DB_NAME:-ekinerja_smansage}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-rahasia123}
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-ekinerja_smansage}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
 volumes:
   ekinerja_data:
-  pgdata:

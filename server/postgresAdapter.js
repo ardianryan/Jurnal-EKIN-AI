@@ -180,6 +180,28 @@ export async function initPostgresDatabase() {
       // Bersihkan entitas penilai lawas jika pernah tersimpan di database
       await client.query("DELETE FROM system_settings WHERE setting_key = 'penilai'");
 
+      // ======================================================================
+      // 🚀 AUTO-MIGRATION: Pastikan seluruh kolom versi terbaru selalu ada
+      // ======================================================================
+      const migrations = [
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS gdrive_link TEXT DEFAULT ''",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS default_jam VARCHAR(50) DEFAULT '08:00 - 16:00'",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS updated_at VARCHAR(50)",
+        "ALTER TABLE journals ADD COLUMN IF NOT EXISTS attachments TEXT",
+        "ALTER TABLE journals ADD COLUMN IF NOT EXISTS foto_url TEXT",
+        "ALTER TABLE journals ADD COLUMN IF NOT EXISTS file_url TEXT",
+        "ALTER TABLE journals ADD COLUMN IF NOT EXISTS updated_at VARCHAR(50)",
+        "ALTER TABLE registration_codes ADD COLUMN IF NOT EXISTS allow_env_key BOOLEAN DEFAULT TRUE"
+      ];
+
+      for (const sql of migrations) {
+        try {
+          await client.query(sql);
+        } catch (mErr) {
+          // Abaikan jika sudah ada
+        }
+      }
+
       // 7. SEEDER OTOMATIS: JALANKAN JIKA TABEL ACCOUNTS KOSONG
       const accRes = await client.query("SELECT COUNT(*) AS count FROM accounts");
       let accountCount = parseInt(accRes.rows[0]?.count || "0", 10);
@@ -332,6 +354,8 @@ export async function loadStoreFromPostgres() {
         pangkat: r.pangkat,
         jabatan: r.jabatan,
         unitKerja: r.unit_kerja,
+        gdriveLink: r.gdrive_link || "",
+        defaultJam: r.default_jam || "08:00 - 16:00",
         allowEnvKey: Boolean(r.allow_env_key),
         personalApiKey: r.personal_api_key || "",
         createdAt: r.created_at,
@@ -454,8 +478,8 @@ export async function syncStoreToPostgres(store) {
       if (Array.isArray(store.accounts)) {
         for (const a of store.accounts) {
           await client.query(`
-            INSERT INTO accounts (id, username, password, role, nama, nip, pangkat, jabatan, unit_kerja, allow_env_key, personal_api_key, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            INSERT INTO accounts (id, username, password, role, nama, nip, pangkat, jabatan, unit_kerja, gdrive_link, default_jam, allow_env_key, personal_api_key, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             ON CONFLICT (id) DO UPDATE SET
               username = EXCLUDED.username,
               password = EXCLUDED.password,
@@ -465,6 +489,8 @@ export async function syncStoreToPostgres(store) {
               pangkat = EXCLUDED.pangkat,
               jabatan = EXCLUDED.jabatan,
               unit_kerja = EXCLUDED.unit_kerja,
+              gdrive_link = EXCLUDED.gdrive_link,
+              default_jam = EXCLUDED.default_jam,
               allow_env_key = EXCLUDED.allow_env_key,
               personal_api_key = EXCLUDED.personal_api_key,
               updated_at = EXCLUDED.updated_at
@@ -478,6 +504,8 @@ export async function syncStoreToPostgres(store) {
             a.pangkat || "",
             a.jabatan || "",
             a.unitKerja || "",
+            a.gdriveLink || "",
+            a.defaultJam || "08:00 - 16:00",
             a.allowEnvKey !== false,
             a.personalApiKey || null,
             a.createdAt || new Date().toISOString(),
