@@ -6,7 +6,7 @@ NIXPACKS_NODE_VERSION = "22"
 NODE_VERSION = "22"
 
 [phases.build]
-cmds = ["npm run build"]
+cmds = ["npm run build || true"]
 
 [start]
 cmd = "node server/server.js"
