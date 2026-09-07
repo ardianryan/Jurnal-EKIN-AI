@@ -25,6 +25,7 @@ import { authenticate, registerAccount, getSchoolName, getSchoolLogo, fetchSsoCo
 // Helper membaca posisi tab dari URL hash atau localStorage
 const getInitialAuthTab = () => {
   const hash = window.location.hash.replace(/^#\/?/, "").trim().toLowerCase();
+  if (hash.startsWith("sso-callback")) return "login";
   if (hash.startsWith("register") || hash.startsWith("daftar")) return "register";
   if (hash.startsWith("login") || hash.startsWith("masuk")) return "login";
   try {
@@ -105,7 +106,12 @@ export default function LoginPage({
     window.addEventListener("hashchange", syncFromHash);
 
     const currentHash = window.location.hash.replace(/^#\/?/, "").trim().toLowerCase();
-    if (currentHash !== "login" && currentHash !== "register" && currentHash !== "daftar") {
+    if (
+      currentHash !== "login" && 
+      currentHash !== "register" && 
+      currentHash !== "daftar" &&
+      !currentHash.startsWith("sso-callback")
+    ) {
       const initial = getInitialAuthTab();
       window.location.hash = `#${initial}`;
     }

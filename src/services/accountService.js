@@ -496,9 +496,69 @@ export async function removeRegistrationCode(codeId) {
   return true;
 }
 
+// Mengecek dan memproses callback SSO dari URL (baik dari hash maupun search query params)
+// secara sinkron saat aplikasi pertama kali dimuat.
+export function checkAndProcessSsoCallback() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const fullHash = window.location.hash || "";
+    const fullSearch = window.location.search || "";
+    const fullHref = window.location.href || "";
+
+    const hasSsoCallback = fullHash.includes("sso-callback") || fullHref.includes("sso-callback");
+    if (!hasSsoCallback) return null;
+
+    console.log("🌐 [SSO Callback Check] Mendeteksi rute sso-callback pada URL:", fullHref);
+
+    let token = null;
+    let userJson = null;
+
+    // 1. Cek query parameters di URL Hash (misal: #/sso-callback?token=...&user=...)
+    if (fullHash.includes("?")) {
+      const hashQuery = fullHash.substring(fullHash.indexOf("?"));
+      const hashParams = new URLSearchParams(hashQuery);
+      token = hashParams.get("token");
+      userJson = hashParams.get("user");
+    }
+
+    // 2. Fallback cek query parameters di window.location.search (misal: ?token=...&user=...#/sso-callback)
+    if ((!token || !userJson) && fullSearch.includes("?")) {
+      const searchParams = new URLSearchParams(fullSearch);
+      token = token || searchParams.get("token");
+      userJson = userJson || searchParams.get("user");
+    }
+
+    if (token && userJson) {
+      console.log(`🔑 [SSO Callback Check] Token dan User ditemukan. Menyiapkan sesi (Token: ${token.slice(0, 12)}...)...`);
+      const parsedUser = JSON.parse(decodeURIComponent(userJson));
+      const user = handleSsoLoginSession(token, parsedUser);
+
+      // Bersihkan URL hash agar tidak loop atau re-trigger sso-callback saat refresh
+      try {
+        const cleanUrl = window.location.origin + window.location.pathname + "#/home";
+        window.history.replaceState(null, "", cleanUrl);
+      } catch (e) {
+        window.location.hash = "#/home";
+      }
+
+      console.log("🎉 [SSO Callback Check] Sesi SSO berhasil disimpan! Pengguna:", user.username || user.nama);
+      return user;
+    }
+  } catch (err) {
+    console.error("❌ [SSO Callback Check Error]:", err);
+  }
+
+  return null;
+}
+
 // Ambil Pengguna yang Sedang Login (dengan Validasi Session 1 Hari / 24 Jam)
 export function getCurrentUser() {
   try {
+    // 1. Prioritaskan periksa apakah baru saja datang dari redirect callback SSO Zitadel
+    const ssoUser = checkAndProcessSsoCallback();
+    if (ssoUser) return ssoUser;
+
     const now = Date.now();
     const rawSession = localStorage.getItem(SESSION_STORAGE_KEY);
     if (rawSession) {
@@ -678,6 +738,21 @@ export function handleSsoLoginSession(token, user) {
   };
   localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
   localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+
+  // Simpan / sinkronkan juga ke penyimpanan lokal akun (ekinerja_accounts_db)
+  try {
+    const accounts = getAccounts();
+    const idx = accounts.findIndex(a => a.id === user.id || a.username === user.username);
+    if (idx !== -1) {
+      accounts[idx] = { ...accounts[idx], ...user };
+    } else {
+      accounts.push(user);
+    }
+    localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(accounts));
+  } catch (e) {
+    console.error("Gagal menyinkronkan user SSO ke akun lokal:", e);
+  }
+
   return user;
 }
 
