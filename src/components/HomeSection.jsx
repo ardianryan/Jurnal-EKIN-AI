@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { 
   Sparkles, 
   Camera, 
@@ -10,7 +10,10 @@ import {
   FolderCheck,
   UserCheck,
   PlusCircle,
-  Send
+  Send,
+  Link2,
+  ExternalLink,
+  X
 } from "lucide-react";
 
 export default function HomeSection({ 
@@ -21,6 +24,7 @@ export default function HomeSection({
   onOpenAccountManagerModal,
   botConfig = { enabled: false, username: "" }
 }) {
+  const [activePhotoModal, setActivePhotoModal] = useState(null);
   // Filter ketat HANYA untuk pengguna yang sedang aktif login
   const currentUserId = currentUser?.id || (currentUser?.username ? `usr-${currentUser.username}` : "");
   const currentUsername = (currentUser?.username || "").toLowerCase();
@@ -763,18 +767,104 @@ export default function HomeSection({
                   </div>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                  {j.fotoUrl && (
-                    <span style={{ fontSize: "0.75rem", color: "#059669", background: "#d1fae5", padding: "0.2rem 0.5rem", borderRadius: "10px", fontWeight: "600" }}>
-                      📷 Foto
-                    </span>
-                  )}
-                  {j.linkUrl && (
-                    <span style={{ fontSize: "0.75rem", color: "#2563eb", background: "#dbeafe", padding: "0.2rem 0.5rem", borderRadius: "10px", fontWeight: "600" }}>
-                      🔗 Drive
-                    </span>
-                  )}
-                </div>
+                {(() => {
+                  const atts = Array.isArray(j.attachments) && j.attachments.length > 0
+                    ? j.attachments
+                    : (j.fotoUrl || j.fileName ? [{ type: j.evidenceType || (j.fotoUrl ? "image" : "document"), fotoUrl: j.fotoUrl, fileUrl: j.fileUrl || j.fotoUrl, fileName: j.fileName }] : []);
+                  const photoItem = atts.find(a => a.type === "image" && (a.fotoUrl || a.fileUrl)) || (j.fotoUrl ? { fotoUrl: j.fotoUrl } : null);
+                  const docItem = atts.find(a => a.type !== "image" && (a.fileUrl || a.fileName)) || ((j.fileUrl || j.fileName) && !photoItem ? { fileUrl: j.fileUrl, fileName: j.fileName } : null);
+                  const isRealDrive = Boolean(j.linkUrl && typeof j.linkUrl === "string" && !j.linkUrl.includes("/uploads/") && (j.linkUrl.startsWith("http://") || j.linkUrl.startsWith("https://")));
+
+                  return (
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+                      {photoItem && (
+                        <button
+                          type="button"
+                          onClick={() => setActivePhotoModal({
+                            aktivitas: j.aktivitas,
+                            tanggal: j.tanggal,
+                            outputJumlah: j.outputJumlah,
+                            fotoUrl: photoItem.fotoUrl || photoItem.fileUrl
+                          })}
+                          style={{
+                            fontSize: "0.74rem",
+                            color: "#059669",
+                            background: "#ecfdf5",
+                            border: "1px solid #a7f3d0",
+                            padding: "0.22rem 0.6rem",
+                            borderRadius: "6px",
+                            fontWeight: "600",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            cursor: "pointer",
+                            transition: "all 0.15s ease"
+                          }}
+                          title="Klik untuk melihat foto dokumentasi"
+                        >
+                          <Camera size={12} />
+                          <span>Lihat Foto</span>
+                        </button>
+                      )}
+
+                      {docItem && (
+                        <a
+                          href={docItem.fileUrl || (j.linkUrl?.includes("/uploads/") ? j.linkUrl : "#")}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            fontSize: "0.74rem",
+                            color: "#334155",
+                            background: "#f1f5f9",
+                            border: "1px solid #cbd5e1",
+                            padding: "0.22rem 0.6rem",
+                            borderRadius: "6px",
+                            fontWeight: "600",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            textDecoration: "none",
+                            cursor: "pointer",
+                            transition: "all 0.15s ease"
+                          }}
+                          title="Klik untuk membuka dokumen berkas"
+                        >
+                          <FileText size={12} />
+                          <span>{docItem.fileName || "Dokumen"}</span>
+                          <ExternalLink size={10} />
+                        </a>
+                      )}
+
+                      {isRealDrive && (
+                        <a
+                          href={j.linkUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            fontSize: "0.74rem",
+                            color: "#2563eb",
+                            background: "#eff6ff",
+                            border: "1px solid #bfdbfe",
+                            padding: "0.22rem 0.6rem",
+                            borderRadius: "6px",
+                            fontWeight: "600",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            textDecoration: "none",
+                            cursor: "pointer",
+                            transition: "all 0.15s ease"
+                          }}
+                          title="Buka folder Google Drive"
+                        >
+                          <Link2 size={12} />
+                          <span>Google Drive</span>
+                          <ExternalLink size={10} />
+                        </a>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             ))}
           </div>
@@ -797,6 +887,69 @@ export default function HomeSection({
           </div>
         )}
       </div>
+
+      {/* Modal Zoom Foto di Beranda */}
+      {activePhotoModal && (
+        <div 
+          className="modal-overlay" 
+          onClick={() => setActivePhotoModal(null)}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.75)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "1rem"
+          }}
+        >
+          <div 
+            className="modal-content" 
+            onClick={(e) => e.stopPropagation()} 
+            style={{ 
+              maxWidth: "700px", 
+              width: "100%",
+              padding: "1.25rem", 
+              background: "var(--bg-secondary, #ffffff)",
+              borderRadius: "var(--radius-lg, 12px)",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+              <h4 style={{ fontSize: "0.95rem", fontWeight: "700", margin: 0, color: "var(--text-primary)" }}>
+                📷 Bukti Foto Kegiatan
+              </h4>
+              <button 
+                type="button"
+                className="btn btn-secondary btn-icon btn-sm" 
+                onClick={() => setActivePhotoModal(null)}
+                style={{ cursor: "pointer", background: "none", border: "none", color: "var(--text-muted)" }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div style={{ textAlign: "center", background: "#0f172a", borderRadius: "8px", overflow: "hidden", padding: "0.5rem" }}>
+              <img 
+                src={activePhotoModal.fotoUrl} 
+                alt={activePhotoModal.aktivitas} 
+                style={{ maxWidth: "100%", maxHeight: "65vh", objectFit: "contain", borderRadius: "4px" }}
+              />
+            </div>
+            <div style={{ marginTop: "0.75rem", fontSize: "0.84rem", color: "var(--text-primary)", fontWeight: "600" }}>
+              {activePhotoModal.aktivitas}
+            </div>
+            <div style={{ marginTop: "0.35rem", fontSize: "0.75rem", color: "var(--text-muted)", display: "flex", justifyContent: "space-between" }}>
+              <span>📅 Tanggal: {activePhotoModal.tanggal}</span>
+              <span>📊 Output: {activePhotoModal.outputJumlah}</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -127,8 +127,7 @@ export default function JournalSection({
           fileSize: processed.size,
           originalSize: processed.originalSize || "",
           fotoUrl: processed.dataUrl,
-          fileUrl: serverFileUrl,
-          linkUrl: serverFileUrl
+          fileUrl: serverFileUrl
         });
       }
 
@@ -146,7 +145,7 @@ export default function JournalSection({
           originalSize: first ? first.originalSize : "",
           fotoUrl: first ? first.fotoUrl : "",
           fileUrl: first ? first.fileUrl : "",
-          linkUrl: prev.linkUrl || (first ? first.fileUrl : "")
+          linkUrl: prev.linkUrl || ""
         };
       });
     } catch (err) {
@@ -1218,11 +1217,13 @@ export default function JournalSection({
           {displayedJournals.map((j, index) => {
             const attList = Array.isArray(j.attachments) && j.attachments.length > 0
               ? j.attachments
-              : (j.fotoUrl || j.fileName ? [{ type: j.evidenceType || (j.fotoUrl ? "image" : "document"), fotoUrl: j.fotoUrl, fileName: j.fileName, fileSize: j.fileSize, docCategory: j.docCategory }] : []);
-            const photoAtt = attList.find(a => a.type === "image" && a.fotoUrl);
-            const isPhoto = Boolean(photoAtt);
-            const hasDocument = attList.some(a => a.type !== "image");
-            const hasLink = Boolean(j.linkUrl);
+              : (j.fotoUrl || j.fileName ? [{ type: j.evidenceType || (j.fotoUrl ? "image" : "document"), fotoUrl: j.fotoUrl, fileUrl: j.fileUrl || j.fotoUrl, fileName: j.fileName, fileSize: j.fileSize, docCategory: j.docCategory }] : []);
+            const photoAtt = attList.find(a => a.type === "image" && (a.fotoUrl || a.fileUrl));
+            const isPhoto = Boolean(photoAtt || j.fotoUrl);
+            const docAtt = attList.find(a => a.type !== "image" && (a.fileUrl || a.fileName));
+            const hasDocument = Boolean(docAtt || (j.fileName && !isPhoto));
+            // Tautan Drive asli: hanya jika linkUrl adalah URL eksternal dan BUKAN path lokal /uploads/
+            const hasDriveLink = Boolean(j.linkUrl && typeof j.linkUrl === "string" && !j.linkUrl.includes("/uploads/") && (j.linkUrl.startsWith("http://") || j.linkUrl.startsWith("https://")));
             const totalAtts = attList.length;
 
             return (
@@ -1362,41 +1363,87 @@ export default function JournalSection({
                       </span>
                     )}
 
-                    {totalAtts > 1 ? (
+                    {totalAtts > 1 && (
                       <span className="badge" style={{ fontSize: "0.7rem", padding: "0.15rem 0.45rem", background: "var(--bg-tertiary)", color: "var(--text-primary)", display: "inline-flex", alignItems: "center", gap: "3px" }}>
-                        <Paperclip size={11} /> {totalAtts} Berkas Lampiran
+                        <Paperclip size={11} /> {totalAtts} Berkas
                       </span>
-                    ) : (
-                      <>
-                        {isPhoto && (
-                          <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: "3px" }}>
-                            <Camera size={11} /> Foto Terlampir
-                          </span>
-                        )}
-                        {hasDocument && (
-                          <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: "3px" }}>
-                            <FileText size={11} /> {attList[0]?.fileName || j.fileName || "Dokumen"}
-                          </span>
-                        )}
-                      </>
                     )}
 
-                    {hasLink && (
+                    {/* Tombol Lihat Foto */}
+                    {isPhoto && (
+                      <button
+                        type="button"
+                        onClick={() => setActivePhotoModal({
+                          ...j,
+                          fotoUrl: photoAtt?.fotoUrl || photoAtt?.fileUrl || j.fotoUrl
+                        })}
+                        style={{
+                          fontSize: "0.72rem",
+                          color: "#059669",
+                          background: "#ecfdf5",
+                          border: "1px solid #a7f3d0",
+                          borderRadius: "6px",
+                          padding: "0.18rem 0.55rem",
+                          fontWeight: "600",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px"
+                        }}
+                        title="Klik untuk melihat foto"
+                      >
+                        <Camera size={11} /> <span>Lihat Foto</span>
+                      </button>
+                    )}
+
+                    {/* Tombol Buka Dokumen */}
+                    {hasDocument && (
+                      <a
+                        href={docAtt?.fileUrl || j.fileUrl || (j.linkUrl?.includes("/uploads/") ? j.linkUrl : "#")}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          fontSize: "0.72rem",
+                          color: "#334155",
+                          background: "#f1f5f9",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "6px",
+                          padding: "0.18rem 0.55rem",
+                          fontWeight: "600",
+                          textDecoration: "none",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          cursor: "pointer"
+                        }}
+                        title="Klik untuk membuka dokumen berkas"
+                      >
+                        <FileText size={11} /> <span>{docAtt?.fileName || j.fileName || "Buka Dokumen"}</span> <ExternalLink size={10} />
+                      </a>
+                    )}
+
+                    {/* Tautan Asli Google Drive / Cloud (HANYA JIKA ADA URL DRIVE EKSTERNAL) */}
+                    {hasDriveLink && (
                       <a 
                         href={j.linkUrl} 
                         target="_blank" 
                         rel="noreferrer"
                         style={{ 
                           fontSize: "0.72rem", 
-                          color: "var(--accent-primary)", 
+                          color: "#2563eb", 
+                          background: "#eff6ff",
+                          border: "1px solid #bfdbfe",
+                          borderRadius: "6px",
+                          padding: "0.18rem 0.55rem",
                           fontWeight: "600",
                           display: "inline-flex",
                           alignItems: "center",
-                          gap: "3px",
+                          gap: "4px",
                           textDecoration: "none"
                         }}
+                        title="Buka folder Google Drive"
                       >
-                        <Link2 size={11} /> Tautan Drive <ExternalLink size={10} />
+                        <Link2 size={11} /> <span>Google Drive</span> <ExternalLink size={10} />
                       </a>
                     )}
                   </div>

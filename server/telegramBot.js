@@ -2262,7 +2262,7 @@ export async function handleIncomingText(botInstance, msg) {
       aktivitasKasaran: cleanText,
       outputJumlah: polished.outputJumlah,
       catatan: polished.catatan,
-      linkUrl: detectedUrl || (firstAtt ? firstAtt.fileUrl : ""),
+      linkUrl: detectedUrl || "",
       attachments: attachedEvidences,
       source: "telegram",
       aiEngine: polished.source
@@ -2619,7 +2619,7 @@ async function processMediaGroup(botInstance, mgId) {
       outputJumlah: polished.outputJumlah,
       catatan: `Disertai ${items.length} berkas bukti dokumen/foto dokumentasi.`,
       attachments: items,
-      linkUrl: detectedUrl || primary.fileUrl || "",
+      linkUrl: detectedUrl || "",
       source: "telegram-album",
       aiEngine: polished.source
     });
@@ -2734,7 +2734,7 @@ async function handleIncomingAttachment(botInstance, msg, item) {
       outputJumlah: polished.outputJumlah,
       catatan: item.type === "image" ? "Disertai foto dokumentasi fisik lapangan." : `Disertai dokumen eviden ${item.fileName}.`,
       attachments: [item],
-      linkUrl: detectedUrl || item.fileUrl || "",
+      linkUrl: detectedUrl || "",
       source: item.type === "image" ? "telegram-photo" : "telegram-document",
       aiEngine: polished.source
     });

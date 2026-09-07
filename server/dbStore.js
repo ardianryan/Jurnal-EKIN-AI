@@ -672,16 +672,20 @@ export function addJournal(journalData) {
   const legacyFileUrl = journalData.fileUrl || (firstAtt ? (firstAtt.fileUrl || firstAtt.fotoUrl || "") : "");
   const legacyEvidenceType = journalData.evidenceType || (firstAtt ? firstAtt.type : (attachments.length > 0 ? "document" : "none"));
 
+  // Bersihkan linkUrl agar tidak keliru menyimpan path file lokal /uploads/ sebagai link drive
+  const cleanLinkUrl = (journalData.linkUrl && !journalData.linkUrl.includes("/uploads/")) ? journalData.linkUrl : "";
+
   const newEntry = {
     id: journalData.id || `jrn-${Date.now()}`,
     createdAt: new Date().toISOString(),
     ...journalData,
+    linkUrl: cleanLinkUrl,
     attachments,
     fotoPath: legacyFotoPath,
     fotoUrl: legacyFotoUrl,
     filePath: legacyFilePath,
     fileName: legacyFileName,
-    fileUrl: legacyFileUrl,
+    fileUrl: legacyFileUrl || (journalData.linkUrl && journalData.linkUrl.includes("/uploads/") ? journalData.linkUrl : ""),
     evidenceType: legacyEvidenceType
   };
 
@@ -726,9 +730,6 @@ export function addAttachmentToJournal(journalId, attachment) {
   }
   if (!jrn.fileUrl) {
     jrn.fileUrl = newAtt.fileUrl;
-  }
-  if (!jrn.linkUrl && newAtt.fileUrl) {
-    jrn.linkUrl = newAtt.fileUrl;
   }
 
   saveStore(store);
