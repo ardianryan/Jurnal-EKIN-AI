@@ -36,19 +36,16 @@ export function getZitadelConfig(storeSettings = {}) {
 }
 
 /**
- * Validasi ketat metadata pengguna dari Zitadel
- * Syarat:
- * 1. Role: Hanya 'guru' atau 'tendik' (case-insensitive)
- * 2. NIP: Wajib ada dan tepat 18 digit angka (karena fallback NIP adalah NIK 16 digit, maka NIK ditolak!)
+ * Validasi dan ekstraksi profil/metadata pengguna dari Zitadel
+ * Otomatis menerima pengguna terautentikasi dan mengekstrak data identitas (NIP, NIK, Nama, Role)
  */
 export function validateZitadelMetadata(rawMetadata = {}, userClaims = {}) {
-  // Normalisasi metadata kunci (case-insensitive / format array atau string)
+  // Normalisasi metadata kunci (case-insensitive / format base64)
   const meta = {};
   if (typeof rawMetadata === "object" && rawMetadata !== null) {
     for (const [key, value] of Object.entries(rawMetadata)) {
       const cleanKey = String(key).toLowerCase().trim();
       let cleanVal = value;
-      // Zitadel metadata kadang dikirim dalam format base64 string jika dari gRPC/REST API
       if (typeof value === "string") {
         try {
           const decoded = Buffer.from(value, "base64").toString("utf8");
@@ -61,38 +58,27 @@ export function validateZitadelMetadata(rawMetadata = {}, userClaims = {}) {
     }
   }
 
-  // Cek Role
-  const role = String(meta.role || userClaims["urn:zitadel:iam:org:project:roles"] || "").toLowerCase().trim();
-  const allowedRoles = ["guru", "tendik"];
-  const isRoleAllowed = allowedRoles.includes(role);
+  // Ekstrak Role jika ada (fallback ke pegawai jika tidak spesifik)
+  let role = String(meta.role || userClaims["urn:zitadel:iam:org:project:roles"] || userClaims.role || "pegawai").toLowerCase().trim();
+  if (role.includes("guru")) role = "guru";
+  else if (role.includes("tendik")) role = "tendik";
+  else if (role.includes("admin")) role = "superadmin";
+  else role = "pegawai";
 
-  if (!isRoleAllowed) {
-    return {
-      allowed: false,
-      reason: "Anda tidak memiliki akses ke Website ini",
-      details: `Role "${role}" tidak memiliki izin akses.`
-    };
-  }
-
-  // Cek NIP (Wajib angka tepat 18 digit)
-  const rawNip = String(meta.nip || meta.nomor_induk || "").trim();
+  // Ekstrak NIP jika ada
+  const rawNip = String(meta.nip || meta.nomor_induk || userClaims.nip || "").trim();
   const digitsOnlyNip = rawNip.replace(/\D/g, "");
 
-  // Jika NIP 16 digit (kemungkinan NIK) atau kurang/lebih dari 18 digit -> Tolak
-  if (digitsOnlyNip.length !== 18) {
-    return {
-      allowed: false,
-      reason: "Anda tidak memiliki akses ke Website ini",
-      details: `NIP tidak valid (${digitsOnlyNip.length} digit). Wajib tepat 18 digit angka ASN.`
-    };
-  }
+  // Ekstrak NIK jika ada
+  const rawNik = String(meta.nik || userClaims.nik || "").trim();
+  const digitsOnlyNik = rawNik.replace(/\D/g, "");
 
   return {
     allowed: true,
     nip: digitsOnlyNip,
-    nik: String(meta.nik || "").replace(/\D/g, ""),
+    nik: digitsOnlyNik,
     role,
-    academicYearId: meta.academic_year_id || "",
+    academicYearId: meta.academic_year_id || userClaims.academic_year_id || "",
     uuid: meta.uuid || userClaims.sub || "",
     source: meta.source || "scholargate_sso"
   };

@@ -469,49 +469,47 @@ const server = http.createServer(async (req, res) => {
 
       const { userInfo, metadata } = await exchangeZitadelCode(code, state, config, redirectUri);
 
-      // 🛡️ SECURITY GATEKEEPER: Validasi Metadata (Role: guru / tendik & NIP: tepat 18 digit)
+      // Ekstraksi data profil dari Zitadel
       const validation = validateZitadelMetadata(metadata, userInfo);
-      if (!validation.allowed) {
-        console.warn(`⛔ [Zitadel Access Denied] ${validation.details || validation.reason}. UserInfo:`, userInfo.sub, metadata);
-        res.statusCode = 302;
-        // Tolak dengan pesan wajib: "Anda tidak memiliki akses ke Website ini"
-        res.setHeader("Location", `/#/login?error=${encodeURIComponent("Anda tidak memiliki akses ke Website ini")}`);
-        res.end();
-        return;
-      }
 
-      // Metadata Lolos Verifikasi!
-      // Cari atau buat akun di database
+      // Cari atau daftarkan akun secara otomatis di database
       const accounts = store.accounts || [];
-      const userNip = validation.nip;
-      const username = (userInfo.preferred_username || userInfo.email?.split("@")[0] || `pegawai_${userNip.slice(-6)}`).toLowerCase().trim();
-      const namaLengkap = userInfo.name || userInfo.nickname || "Pegawai SSO";
+      const userNip = validation.nip || "";
+      const userNik = validation.nik || "";
+      const rawUsername = userInfo.preferred_username || userInfo.email?.split("@")[0] || (userNip ? `pegawai_${userNip.slice(-6)}` : `sso_${userInfo.sub?.slice(0, 8)}`);
+      const username = String(rawUsername).toLowerCase().trim();
+      const namaLengkap = userInfo.name || userInfo.nickname || userInfo.given_name || (userNip ? `Pegawai ${userNip}` : username);
 
-      let existing = accounts.find(a => (a.nip && a.nip === userNip) || a.username === username || (a.ssoUuid && a.ssoUuid === validation.uuid));
+      let existing = accounts.find(a => 
+        (userNip && a.nip === userNip) || 
+        (a.username && a.username.toLowerCase() === username) || 
+        (validation.uuid && a.ssoUuid === validation.uuid)
+      );
 
       if (existing) {
-        // Update data jika perlu
-        existing.nip = userNip;
+        // Sinkronkan data jika ada update dari Zitadel
+        if (userNip && !existing.nip) existing.nip = userNip;
+        if (userNik && !existing.nik) existing.nik = userNik;
         existing.ssoSource = validation.source;
-        existing.ssoUuid = validation.uuid;
-        existing.ssoRole = validation.role;
+        existing.ssoUuid = validation.uuid || existing.ssoUuid;
+        existing.ssoRole = validation.role || existing.ssoRole;
         if (!existing.nama || existing.nama === "Pegawai SSO") {
           existing.nama = namaLengkap;
         }
       } else {
-        // Buat akun baru (karena jabatan, pangkat, satker kosong -> otomatis trigger onboarding kelengkapan profil)
+        // Otomatis buat akun baru langsung terverifikasi
         existing = {
           id: "usr-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
           username,
-          password: "", // akun SSO tidak memakai password lokal
+          password: "", // akun SSO tidak membutuhkan password lokal
           nama: namaLengkap,
           nip: userNip,
-          nik: validation.nik || "",
-          role: "pegawai", // pegawai/ASN
-          ssoRole: validation.role,
-          pangkat: "", // kosong agar memicu onboarding
-          jabatan: "", // kosong agar memicu onboarding
-          unitKerja: "", // kosong agar memicu onboarding
+          nik: userNik,
+          role: "pegawai",
+          ssoRole: validation.role || "guru",
+          pangkat: "",
+          jabatan: "",
+          unitKerja: "",
           ssoSource: validation.source,
           ssoUuid: validation.uuid,
           createdAt: new Date().toISOString()
@@ -522,18 +520,22 @@ const server = http.createServer(async (req, res) => {
       store.accounts = accounts;
       saveStore(store);
 
-      // Buat Sesi Web
+      // Buat Sesi Web Resmi
       const session = createWebSession(existing);
 
       // Redirect ke frontend membawa token sesi login
+      const publicBase = (process.env.APP_URL || "").trim().replace(/\/+$/, "");
+      const redirectTarget = `${publicBase}/#/sso-callback?token=${encodeURIComponent(session.token)}&user=${encodeURIComponent(JSON.stringify(session.user))}`;
+      
       res.statusCode = 302;
-      res.setHeader("Location", `/#/sso-callback?token=${encodeURIComponent(session.token)}&user=${encodeURIComponent(JSON.stringify(session.user))}`);
+      res.setHeader("Location", redirectTarget);
       res.end();
       return;
     } catch (err) {
       console.error("Zitadel callback error:", err);
+      const publicBase = (process.env.APP_URL || "").trim().replace(/\/+$/, "");
       res.statusCode = 302;
-      res.setHeader("Location", `/#/login?error=${encodeURIComponent(err.message || "Gagal memproses login SSO.")}`);
+      res.setHeader("Location", `${publicBase}/#/login?error=${encodeURIComponent(err.message || "Gagal memproses login SSO.")}`);
       res.end();
       return;
     }
