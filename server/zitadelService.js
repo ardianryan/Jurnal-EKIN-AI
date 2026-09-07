@@ -149,15 +149,17 @@ export async function exchangeZitadelCode(code, state, config, redirectUri) {
 
   if (!tokenRes.ok) {
     const errText = await tokenRes.text();
-    console.error("Gagal menukar token Zitadel:", errText);
-    throw new Error(`Gagal otentikasi dengan Zitadel: ${tokenRes.statusText}`);
+    console.error(`❌ [Zitadel Token Error] HTTP ${tokenRes.status} ${tokenRes.statusText}:`, errText);
+    throw new Error(`Gagal otentikasi token Zitadel: ${tokenRes.statusText} (${errText})`);
   }
 
   const tokenData = await tokenRes.json();
   const accessToken = tokenData.access_token;
+  console.log("🎟️ [Zitadel Token Exchange] Token berhasil diperoleh. TokenType:", tokenData.token_type, "ExpiresIn:", tokenData.expires_in);
 
   // Ambil data UserInfo & Metadata dari Zitadel
   const userInfoEndpoint = `${config.issuer}/oidc/v1/userinfo`;
+  console.log(`📡 [Zitadel UserInfo] Memanggil endpoint UserInfo: ${userInfoEndpoint}`);
   const userRes = await fetch(userInfoEndpoint, {
     headers: {
       "Authorization": `Bearer ${accessToken}`
@@ -165,10 +167,13 @@ export async function exchangeZitadelCode(code, state, config, redirectUri) {
   });
 
   if (!userRes.ok) {
-    throw new Error("Gagal mengambil informasi profil pengguna dari Zitadel.");
+    const userErrText = await userRes.text();
+    console.error(`❌ [Zitadel UserInfo Error] HTTP ${userRes.status} ${userRes.statusText}:`, userErrText);
+    throw new Error(`Gagal mengambil UserInfo dari Zitadel: ${userRes.statusText}`);
   }
 
   const userInfo = await userRes.json();
+  console.log("📋 [Zitadel Raw UserInfo]:", JSON.stringify(userInfo));
 
   // Ekstrak metadata khusus (Zitadel menyimpan metadata di claim 'urn:zitadel:iam:user:metadata' atau langsung)
   let rawMetadata = userInfo["urn:zitadel:iam:user:metadata"] || userInfo.metadata || {};

@@ -236,16 +236,20 @@ export default function App() {
     // Cek apakah ada redirect dari callback Zitadel SSO: #/sso-callback?token=...&user=...
     const fullHash = window.location.hash || "";
     if (fullHash.includes("sso-callback")) {
+      console.log("🌐 [Frontend SSO Callback] Mendeteksi rute sso-callback di URL hash:", fullHash);
       try {
         const queryIndex = fullHash.indexOf("?");
         if (queryIndex !== -1) {
           const searchParams = new URLSearchParams(fullHash.substring(queryIndex));
           const token = searchParams.get("token");
           const userJson = searchParams.get("user");
+          console.log(`🌐 [Frontend SSO Callback] Token ada: ${Boolean(token)}, UserJson ada: ${Boolean(userJson)}`);
           if (token && userJson) {
             const parsedUser = JSON.parse(decodeURIComponent(userJson));
+            console.log("👤 [Frontend SSO Callback] User berhasil di-parse:", parsedUser);
             const loggedInUser = handleSsoLoginSession(token, parsedUser);
             if (loggedInUser) {
+              console.log("🎉 [Frontend SSO Callback] Sesi login tersimpan! Mengarahkan ke #/home...");
               setCurrentUserState(loggedInUser);
               window.location.hash = "#/home";
               return () => window.removeEventListener("hashchange", handleHashChange);
@@ -253,7 +257,7 @@ export default function App() {
           }
         }
       } catch (e) {
-        console.error("Gagal memproses sesi SSO Callback:", e);
+        console.error("❌ [Frontend SSO Callback Error]:", e);
       }
     }
 

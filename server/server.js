@@ -377,7 +377,11 @@ const server = http.createServer(async (req, res) => {
     try {
       const store = getStore();
       const config = getZitadelConfig(store.settings || {});
+      console.log("🔐 [SSO Login] Memulai autentikasi Zitadel...");
+      console.log(`🔐 [SSO Login] Issuer: ${config.issuer}, ClientID: ${config.clientId ? config.clientId.slice(0, 8) + '...' : 'KOSONG'}, Enabled: ${config.enabled}`);
+
       if (!config.enabled) {
+        console.warn("⚠️ [SSO Login] SSO Zitadel belum diaktifkan!");
         res.statusCode = 400;
         res.setHeader("Content-Type", "text/plain; charset=utf-8");
         res.end("SSO Zitadel belum diaktifkan oleh Administrator.");
@@ -404,13 +408,15 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
+      console.log(`🌐 [SSO Login] Menggunakan Redirect URI: ${redirectUri}`);
       const { url } = buildZitadelAuthorizeUrl(config, redirectUri);
+      console.log(`🚀 [SSO Login] Mengalihkan browser ke Zitadel Auth URL: ${url}`);
       res.statusCode = 302;
       res.setHeader("Location", url);
       res.end();
       return;
     } catch (err) {
-      console.error("Error initiate Zitadel SSO:", err.message);
+      console.error("❌ [SSO Login Error]:", err.message, err.stack);
       res.statusCode = 302;
       res.setHeader("Location", `/#/login?error=${encodeURIComponent("Gagal menginisiasi SSO: " + err.message)}`);
       res.end();
@@ -428,15 +434,19 @@ const server = http.createServer(async (req, res) => {
     const errorParam = parsedUrl.searchParams.get("error");
     const errorDesc = parsedUrl.searchParams.get("error_description");
 
+    console.log("📥 [SSO Callback] Menerima callback dari Zitadel.");
+    console.log(`📥 [SSO Callback] Code: ${code ? code.slice(0, 10) + '...' : 'TIDAK ADA'}, State: ${state ? state.slice(0, 10) + '...' : 'TIDAK ADA'}`);
+
     if (errorParam) {
-      console.warn("Zitadel error callback:", errorParam, errorDesc);
+      console.error("❌ [SSO Callback Error dari Zitadel]:", errorParam, errorDesc);
       res.statusCode = 302;
-      res.setHeader("Location", `/#/login?error=${encodeURIComponent("Anda tidak memiliki akses ke Website ini")}`);
+      res.setHeader("Location", `/#/login?error=${encodeURIComponent("Gagal dari Zitadel: " + (errorDesc || errorParam))}`);
       res.end();
       return;
     }
 
     if (!code || !state) {
+      console.warn("⚠️ [SSO Callback] Parameter code atau state kosong!");
       res.statusCode = 302;
       res.setHeader("Location", `/#/login?error=${encodeURIComponent("Kode otorisasi SSO tidak ditemukan.")}`);
       res.end();
@@ -467,10 +477,19 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
+      console.log(`🔄 [SSO Callback] Menukarkan authorization code dengan token menggunakan redirectUri: ${redirectUri}`);
       const { userInfo, metadata } = await exchangeZitadelCode(code, state, config, redirectUri);
+      console.log("✅ [SSO Callback] UserInfo berhasil diperoleh:", JSON.stringify({
+        sub: userInfo.sub,
+        preferred_username: userInfo.preferred_username,
+        name: userInfo.name,
+        email: userInfo.email
+      }));
+      console.log("✅ [SSO Callback] Metadata yang diekstrak:", JSON.stringify(metadata));
 
       // Ekstraksi data profil dari Zitadel
       const validation = validateZitadelMetadata(metadata, userInfo);
+      console.log("🛡️ [SSO Callback] Hasil normalisasi metadata:", JSON.stringify(validation));
 
       // Cari atau daftarkan akun secara otomatis di database
       const accounts = store.accounts || [];
@@ -487,7 +506,7 @@ const server = http.createServer(async (req, res) => {
       );
 
       if (existing) {
-        // Sinkronkan data jika ada update dari Zitadel
+        console.log(`👤 [SSO Callback] Akun yang cocok ditemukan di database: ${existing.username} (ID: ${existing.id})`);
         if (userNip && !existing.nip) existing.nip = userNip;
         if (userNik && !existing.nik) existing.nik = userNik;
         existing.ssoSource = validation.source;
@@ -497,7 +516,7 @@ const server = http.createServer(async (req, res) => {
           existing.nama = namaLengkap;
         }
       } else {
-        // Otomatis buat akun baru langsung terverifikasi
+        console.log(`✨ [SSO Callback] Mendaftarkan akun baru secara otomatis: ${username} (Nama: ${namaLengkap})`);
         existing = {
           id: "usr-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
           username,
@@ -522,17 +541,19 @@ const server = http.createServer(async (req, res) => {
 
       // Buat Sesi Web Resmi
       const session = createWebSession(existing);
+      console.log(`🔑 [SSO Callback] Sesi web berhasil dibuat (Token: ${session.token.slice(0, 12)}..., Exp: ${new Date(session.expiresAt).toLocaleString()})`);
 
       // Redirect ke frontend membawa token sesi login
       const publicBase = (process.env.APP_URL || "").trim().replace(/\/+$/, "");
       const redirectTarget = `${publicBase}/#/sso-callback?token=${encodeURIComponent(session.token)}&user=${encodeURIComponent(JSON.stringify(session.user))}`;
       
+      console.log(`🚀 [SSO Callback] Mengarahkan pengguna kembali ke frontend: ${redirectTarget}`);
       res.statusCode = 302;
       res.setHeader("Location", redirectTarget);
       res.end();
       return;
     } catch (err) {
-      console.error("Zitadel callback error:", err);
+      console.error("❌ [SSO Callback Error]:", err.message, err.stack);
       const publicBase = (process.env.APP_URL || "").trim().replace(/\/+$/, "");
       res.statusCode = 302;
       res.setHeader("Location", `${publicBase}/#/login?error=${encodeURIComponent(err.message || "Gagal memproses login SSO.")}`);
