@@ -186,7 +186,7 @@ let cachedAiConfig = {
   hasServerKey: false,
   provider: "gemini",
   baseUrl: "",
-  model: "gemini-2.5-flash"
+  model: "gemini-3.5-flash-lite"
 };
 
 /**
@@ -210,7 +210,7 @@ export async function fetchServerAiStatus() {
           hasServerKey: Boolean(data.hasServerKey || data.enabled),
           provider: data.provider || "gemini",
           baseUrl: data.baseUrl || "",
-          model: data.model || (data.provider === "openai" ? "openai/gpt-4o-mini" : "gemini-2.5-flash")
+          model: data.model || (data.provider === "openai" ? "openai/gpt-4o-mini" : "gemini-3.5-flash-lite")
         };
         return cachedAiConfig;
       }
@@ -263,7 +263,7 @@ export async function syncWithBackend() {
           hasServerKey: Boolean(data.aiConfig.hasServerKey || data.aiConfig.enabled),
           provider: data.aiConfig.provider || "gemini",
           baseUrl: data.aiConfig.baseUrl || "",
-          model: data.aiConfig.model || (data.aiConfig.provider === "openai" ? "openai/gpt-4o-mini" : "gemini-2.5-flash")
+          model: data.aiConfig.model || (data.aiConfig.provider === "openai" ? "openai/gpt-4o-mini" : "gemini-3.5-flash-lite")
         };
       }
       if (data && Array.isArray(data.accounts)) {
@@ -933,7 +933,7 @@ export function resolveEffectiveApiKey(currentUser, envApiKey, serverAiConfig = 
   if (currentUser?.aiModeChoice === "personal" || currentUser?.usePersonalKey) {
     if (currentUser?.personalApiKey) {
       const p = currentUser.personalAiProvider || "gemini";
-      const pModel = currentUser.personalAiModel || (p === "openai" ? "openai/gpt-4o-mini" : "gemini-2.5-flash");
+      const pModel = currentUser.personalAiModel || (p === "openai" ? "openai/gpt-4o-mini" : "gemini-3.5-flash-lite");
       return {
         key: currentUser.personalApiKey,
         source: "personal",
@@ -950,7 +950,7 @@ export function resolveEffectiveApiKey(currentUser, envApiKey, serverAiConfig = 
   if (currentUser?.aiModeChoice === "env" || !currentUser?.aiModeChoice) {
     if (userAllowedEnv && (envApiKey || serverHasKey)) {
       const p = aiConfig?.provider || "gemini";
-      const pModel = aiConfig?.model || (p === "openai" ? "openai/gpt-4o-mini" : "gemini-2.5-flash");
+      const pModel = aiConfig?.model || (p === "openai" ? "openai/gpt-4o-mini" : "gemini-3.5-flash-lite");
       return {
         key: envApiKey || "server-managed",
         source: "env",
@@ -973,7 +973,7 @@ export function resolveEffectiveApiKey(currentUser, envApiKey, serverAiConfig = 
       isOnline: true,
       provider: p,
       baseUrl: currentUser.personalAiBaseUrl || (p === "openai" ? "https://api.9router.com/v1" : ""),
-      model: currentUser.personalAiModel || (p === "openai" ? "openai/gpt-4o-mini" : "gemini-2.5-flash")
+      model: currentUser.personalAiModel || (p === "openai" ? "openai/gpt-4o-mini" : "gemini-3.5-flash-lite")
     };
   }
 

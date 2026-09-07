@@ -45,7 +45,9 @@ export default function GeminiModal({
   const [personalKeyInput, setPersonalKeyInput] = useState(currentUser?.personalApiKey || "");
   const [personalProvider, setPersonalProvider] = useState(currentUser?.personalAiProvider || "gemini");
   const [personalBaseUrl, setPersonalBaseUrl] = useState(currentUser?.personalAiBaseUrl || "https://api.9router.com/v1");
-  const [personalModel, setPersonalModel] = useState(currentUser?.personalAiModel || "openai/gpt-4o-mini");
+  const [personalModel, setPersonalModel] = useState(
+    currentUser?.personalAiModel || (currentUser?.personalAiProvider === "openai" ? "openai/gpt-4o-mini" : "gemini-3.5-flash-lite")
+  );
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {
@@ -53,7 +55,9 @@ export default function GeminiModal({
       setPersonalKeyInput(currentUser.personalApiKey || "");
       setPersonalProvider(currentUser.personalAiProvider || "gemini");
       setPersonalBaseUrl(currentUser.personalAiBaseUrl || "https://api.9router.com/v1");
-      setPersonalModel(currentUser.personalAiModel || "openai/gpt-4o-mini");
+      setPersonalModel(
+        currentUser.personalAiModel || (currentUser.personalAiProvider === "openai" ? "openai/gpt-4o-mini" : "gemini-3.5-flash-lite")
+      );
 
       if (currentUser.aiModeChoice === "offline") {
         setKeyChoice("offline");
@@ -102,13 +106,13 @@ export default function GeminiModal({
     setPersonalKeyInput("");
     setPersonalProvider("gemini");
     setPersonalBaseUrl("https://api.9router.com/v1");
-    setPersonalModel("openai/gpt-4o-mini");
+    setPersonalModel("gemini-3.5-flash-lite");
     const nextChoice = (hasEnvKey && isAllowedEnv) ? "env" : "offline";
     setKeyChoice(nextChoice);
     onSaveUserKey("", false, nextChoice, {
       provider: "gemini",
       baseUrl: "",
-      model: ""
+      model: "gemini-3.5-flash-lite"
     });
   };
 
@@ -351,7 +355,7 @@ export default function GeminiModal({
                 <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: "2px" }}>
                   {serverAiConfig?.provider === "openai"
                     ? `Menggunakan server-side OpenAI/9router (${serverAiConfig.model || "openai/gpt-4o-mini"}) tanpa perlu mendaftar key sendiri.`
-                    : "Praktis menggunakan Gemini 2.5 Flash Online dari konfigurasi server tanpa perlu mendaftar key sendiri."}
+                    : "Praktis menggunakan Gemini 3.5 Flash Lite Online dari konfigurasi server tanpa perlu mendaftar key sendiri."}
                 </div>
               </div>
             </label>
@@ -454,7 +458,12 @@ export default function GeminiModal({
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
                   <button
                     type="button"
-                    onClick={() => setPersonalProvider("gemini")}
+                    onClick={() => {
+                      setPersonalProvider("gemini");
+                      if (!personalModel || personalModel.includes("openai") || personalModel.includes("gpt")) {
+                        setPersonalModel("gemini-3.5-flash-lite");
+                      }
+                    }}
                     style={{
                       padding: "0.6rem 0.75rem",
                       borderRadius: "8px",
@@ -477,7 +486,12 @@ export default function GeminiModal({
 
                   <button
                     type="button"
-                    onClick={() => setPersonalProvider("openai")}
+                    onClick={() => {
+                      setPersonalProvider("openai");
+                      if (!personalModel || personalModel.includes("gemini")) {
+                        setPersonalModel("openai/gpt-4o-mini");
+                      }
+                    }}
                     style={{
                       padding: "0.6rem 0.75rem",
                       borderRadius: "8px",
