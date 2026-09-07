@@ -1,9 +1,9 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { 
   BookOpen, Plus, PlusCircle, Camera, Trash2, Sparkles, 
   Calendar, Clock, CheckCircle2, FileText, ExternalLink, 
   X, ZoomIn, Paperclip, FileSpreadsheet, Link2, Briefcase, Edit3,
-  RefreshCw, ChevronDown
+  RefreshCw, ChevronDown, Search, Check, Filter
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { processEvidenceFile } from "../utils/fileUtils";
@@ -33,11 +33,37 @@ export default function JournalSection({
   const formContainerRef = useRef(null);
   const [originalKasaran, setOriginalKasaran] = useState("");
   const [selectedJabatanOverride, setSelectedJabatanOverride] = useState("");
+  const [isProfesiOpen, setIsProfesiOpen] = useState(false);
+  const [profesiSearch, setProfesiSearch] = useState("");
+  const profesiRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (profesiRef.current && !profesiRef.current.contains(event.target)) {
+        setIsProfesiOpen(false);
+      }
+    }
+    if (isProfesiOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isProfesiOpen]);
 
   const currentJabatan = pegawai?.jabatan || currentUser?.jabatan || "";
   const activeJabatanForExamples = selectedJabatanOverride || currentJabatan;
   const accounts = getAccounts();
   const casualData = getCasualExamplesForUser(activeJabatanForExamples, journals, accounts);
+
+  const filteredJabatanList = (casualData.allJabatanList || []).filter((j) => {
+    if (!profesiSearch.trim()) return true;
+    const q = profesiSearch.toLowerCase();
+    return (
+      (j.nama && j.nama.toLowerCase().includes(q)) ||
+      (j.kategori && j.kategori.toLowerCase().includes(q))
+    );
+  });
 
   // Filter jurnal khusus pengguna yang sedang login
   const currentUserId = currentUser?.id || (currentUser?.username ? `usr-${currentUser.username}` : "");
@@ -831,73 +857,79 @@ export default function JournalSection({
 
                 {/* Opsi ganti profesi contoh jika multi-tasking */}
                 {casualData.allJabatanList && casualData.allJabatanList.length > 0 && (
-                  <div style={{ display: "inline-flex", alignItems: "center", gap: "0.45rem", flexWrap: "wrap" }}>
-                    <div style={{
-                      position: "relative",
-                      display: "inline-flex",
-                      alignItems: "center"
-                    }}>
-                      <label 
-                        htmlFor="select-jabatan-contoh" 
-                        style={{ 
-                          fontSize: "0.72rem", 
-                          fontWeight: "600",
-                          color: "var(--text-muted)", 
-                          margin: 0,
-                          marginRight: "6px",
-                          whiteSpace: "nowrap"
-                        }}
-                      >
-                        Lihat profesi lain:
-                      </label>
-                      <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
-                        <select 
-                          id="select-jabatan-contoh"
-                          value={selectedJabatanOverride || casualData.matchedJabatan?.nama || ""}
-                          onChange={(e) => setSelectedJabatanOverride(e.target.value)}
-                          style={{
-                            appearance: "none",
-                            WebkitAppearance: "none",
-                            MozAppearance: "none",
-                            fontSize: "0.74rem",
-                            fontWeight: "600",
-                            padding: "0.22rem 1.6rem 0.22rem 0.65rem",
-                            borderRadius: "7px",
-                            border: selectedJabatanOverride ? "1.5px solid var(--accent-primary, #3b82f6)" : "1px solid var(--border-strong, #cbd5e1)",
-                            background: selectedJabatanOverride ? "rgba(59, 130, 246, 0.06)" : "var(--bg-secondary)",
-                            color: selectedJabatanOverride ? "var(--accent-primary, #2563eb)" : "var(--text-primary)",
-                            cursor: "pointer",
-                            outline: "none",
-                            maxWidth: "230px",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-                            transition: "all 0.15s ease"
-                          }}
-                        >
-                          {casualData.allJabatanList.map((j) => (
-                            <option key={j.id} value={j.nama} style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>
-                              {j.nama}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown 
-                          size={12} 
-                          style={{ 
-                            position: "absolute", 
-                            right: "7px", 
-                            color: selectedJabatanOverride ? "var(--accent-primary, #3b82f6)" : "var(--text-muted)", 
-                            pointerEvents: "none" 
-                          }} 
-                        />
-                      </div>
-                    </div>
+                  <div ref={profesiRef} style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: "0.45rem", flexWrap: "wrap" }}>
+                    <span 
+                      style={{ 
+                        fontSize: "0.72rem", 
+                        fontWeight: "600",
+                        color: "var(--text-muted)", 
+                        margin: 0,
+                        whiteSpace: "nowrap"
+                      }}
+                    >
+                      Lihat profesi lain:
+                    </span>
 
+                    {/* Custom Popover Trigger Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsProfesiOpen(!isProfesiOpen);
+                        setProfesiSearch("");
+                      }}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        fontSize: "0.74rem",
+                        fontWeight: "600",
+                        padding: "0.24rem 0.65rem",
+                        borderRadius: "8px",
+                        border: selectedJabatanOverride 
+                          ? "1.5px solid var(--accent-primary, #3b82f6)" 
+                          : "1px solid var(--border-color, #cbd5e1)",
+                        background: selectedJabatanOverride 
+                          ? "rgba(59, 130, 246, 0.08)" 
+                          : "var(--bg-secondary, #f8fafc)",
+                        color: selectedJabatanOverride 
+                          ? "var(--accent-primary, #2563eb)" 
+                          : "var(--text-primary, #1e293b)",
+                        cursor: "pointer",
+                        outline: "none",
+                        maxWidth: "240px",
+                        boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                        transition: "all 0.15s ease"
+                      }}
+                      title="Klik untuk memilih profesi/jabatan lain"
+                    >
+                      <Filter size={11} style={{ opacity: 0.7, flexShrink: 0 }} />
+                      <span style={{ 
+                        overflow: "hidden", 
+                        textOverflow: "ellipsis", 
+                        whiteSpace: "nowrap" 
+                      }}>
+                        {selectedJabatanOverride || casualData.matchedJabatan?.nama || "Pilih Profesi..."}
+                      </span>
+                      <ChevronDown 
+                        size={12} 
+                        style={{ 
+                          marginLeft: "auto", 
+                          flexShrink: 0,
+                          transform: isProfesiOpen ? "rotate(180deg)" : "rotate(0deg)",
+                          transition: "transform 0.2s ease",
+                          opacity: 0.7
+                        }} 
+                      />
+                    </button>
+
+                    {/* Reset button if override is active */}
                     {selectedJabatanOverride && (
                       <button
                         type="button"
-                        onClick={() => setSelectedJabatanOverride("")}
+                        onClick={() => {
+                          setSelectedJabatanOverride("");
+                          setIsProfesiOpen(false);
+                        }}
                         style={{
                           background: "#fee2e2",
                           border: "1px solid #fca5a5",
@@ -917,6 +949,155 @@ export default function JournalSection({
                         <X size={10} />
                         <span>Reset</span>
                       </button>
+                    )}
+
+                    {/* Custom Popover Dropdown Menu */}
+                    {isProfesiOpen && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "calc(100% + 6px)",
+                          right: 0,
+                          width: "300px",
+                          maxHeight: "340px",
+                          background: "var(--bg-primary, #ffffff)",
+                          border: "1px solid var(--border-color, #e2e8f0)",
+                          borderRadius: "10px",
+                          boxShadow: "0 12px 28px -4px rgba(0, 0, 0, 0.15), 0 8px 12px -4px rgba(0, 0, 0, 0.08)",
+                          zIndex: 1050,
+                          padding: "0.5rem",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.4rem"
+                        }}
+                      >
+                        {/* Search Input */}
+                        <div style={{
+                          position: "relative",
+                          display: "flex",
+                          alignItems: "center"
+                        }}>
+                          <Search size={13} style={{ position: "absolute", left: "9px", color: "var(--text-muted, #94a3b8)", pointerEvents: "none" }} />
+                          <input
+                            type="text"
+                            value={profesiSearch}
+                            onChange={(e) => setProfesiSearch(e.target.value)}
+                            placeholder="Cari profesi / jabatan..."
+                            autoFocus
+                            style={{
+                              width: "100%",
+                              padding: "0.35rem 1.6rem 0.35rem 1.8rem",
+                              fontSize: "0.75rem",
+                              borderRadius: "6px",
+                              border: "1px solid var(--border-color, #cbd5e1)",
+                              background: "var(--bg-secondary, #f8fafc)",
+                              color: "var(--text-primary, #0f172a)",
+                              outline: "none"
+                            }}
+                          />
+                          {profesiSearch && (
+                            <button
+                              type="button"
+                              onClick={() => setProfesiSearch("")}
+                              style={{
+                                position: "absolute",
+                                right: "6px",
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: "2px",
+                                color: "var(--text-muted, #94a3b8)"
+                              }}
+                            >
+                              <X size={12} />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* List Items */}
+                        <div style={{
+                          overflowY: "auto",
+                          maxHeight: "240px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "2px"
+                        }}>
+                          {filteredJabatanList.length === 0 ? (
+                            <div style={{
+                              padding: "1rem",
+                              textAlign: "center",
+                              fontSize: "0.74rem",
+                              color: "var(--text-muted, #94a3b8)"
+                            }}>
+                              Tidak ditemukan profesi yang cocok
+                            </div>
+                          ) : (
+                            filteredJabatanList.map((j) => {
+                              const isSelected = (selectedJabatanOverride || casualData.matchedJabatan?.nama) === j.nama;
+                              return (
+                                <button
+                                  key={j.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedJabatanOverride(j.nama);
+                                    setIsProfesiOpen(false);
+                                  }}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    width: "100%",
+                                    textAlign: "left",
+                                    padding: "6px 9px",
+                                    borderRadius: "6px",
+                                    border: "none",
+                                    background: isSelected 
+                                      ? "rgba(59, 130, 246, 0.09)" 
+                                      : "transparent",
+                                    color: isSelected 
+                                      ? "var(--accent-primary, #2563eb)" 
+                                      : "var(--text-primary, #1e293b)",
+                                    cursor: "pointer",
+                                    transition: "background 0.12s ease"
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (!isSelected) e.currentTarget.style.background = "var(--bg-secondary, #f1f5f9)";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!isSelected) e.currentTarget.style.background = "transparent";
+                                  }}
+                                >
+                                  <div style={{ display: "flex", flexDirection: "column", gap: "1px", overflow: "hidden" }}>
+                                    <span style={{ 
+                                      fontSize: "0.75rem", 
+                                      fontWeight: isSelected ? "700" : "600",
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap"
+                                    }}>
+                                      {j.nama}
+                                    </span>
+                                    {j.kategori && (
+                                      <span style={{ 
+                                        fontSize: "0.66rem", 
+                                        color: "var(--text-muted, #64748b)",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap"
+                                      }}>
+                                        {j.kategori}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {isSelected && (
+                                    <Check size={14} style={{ color: "var(--accent-primary, #2563eb)", flexShrink: 0, marginLeft: "6px" }} />
+                                  )}
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
