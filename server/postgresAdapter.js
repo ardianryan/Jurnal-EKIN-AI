@@ -445,12 +445,21 @@ export async function loadStoreFromPostgres() {
 
       // Ambil System Settings
       const setRes = await client.query("SELECT * FROM system_settings");
-      let settings = { gdriveLink: "" };
+      let settings = { 
+        schoolName: process.env.SCHOOL_NAME || "SMA Negeri 1 Gedeg",
+        gdriveLink: "" 
+      };
       setRes.rows.forEach(r => {
         if (r.setting_key === "settings") {
-          try { settings = JSON.parse(r.setting_val); } catch (e) {}
+          try { 
+            const parsed = JSON.parse(r.setting_val);
+            settings = { ...settings, ...parsed };
+          } catch (e) {}
         }
       });
+      if (!settings.schoolName) {
+        settings.schoolName = process.env.SCHOOL_NAME || "SMA Negeri 1 Gedeg";
+      }
 
       return {
         accounts,

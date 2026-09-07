@@ -39,7 +39,7 @@ export default function Sidebar({
   onCloseMobile,
   botConfig = { enabled: false, username: "" },
   apiKeyInfo,
-  schoolName = "SMAN Garuda",
+  schoolName = "SMA Negeri 1 Gedeg",
   schoolLogo = null
 }) {
   const isSuperadmin = currentUser?.role === "superadmin";

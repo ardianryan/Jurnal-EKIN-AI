@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 /**
- * HomeSection - Anti-Slop Editorial Design for SMAN Garuda
+ * HomeSection - Anti-Slop Editorial Design for SMA Negeri 1 Gedeg
  * Strictly conforms to Leonxlnx/taste-skill:
  * - Zero gradient blobs or tacky floating circles
  * - Honest left-aligned editorial hierarchy
@@ -31,7 +31,7 @@ export default function HomeSection({
   onNavigate,
   currentUser,
   botConfig = { enabled: false, username: "" },
-  schoolName = "SMAN Garuda"
+  schoolName = "SMA Negeri 1 Gedeg"
 }) {
   const totalJournals = journals.length;
   const totalPhotos = journals.filter(j => j.fotoUrl || (Array.isArray(j.attachments) && j.attachments.some(a => a.type === "image"))).length;

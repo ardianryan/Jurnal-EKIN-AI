@@ -39,7 +39,7 @@ export default function Header({
   onToggleSidebarMobile,
   searchQuery = "",
   setSearchQuery,
-  schoolName = "SMAN Garuda",
+  schoolName = "SMA Negeri 1 Gedeg",
   schoolLogo = null
 }) {
   const isSuperadmin = currentUser?.role === "superadmin";

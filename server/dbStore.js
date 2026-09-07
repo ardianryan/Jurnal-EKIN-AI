@@ -213,8 +213,13 @@ function ensureDb() {
     }
     if (!data.settings) {
       data.settings = {
+        schoolName: process.env.SCHOOL_NAME || "SMA Negeri 1 Gedeg",
         gdriveLink: ""
       };
+      modified = true;
+    }
+    if (!data.settings.schoolName) {
+      data.settings.schoolName = process.env.SCHOOL_NAME || "SMA Negeri 1 Gedeg";
       modified = true;
     }
     if (!data.settings.sso) {
@@ -975,8 +980,12 @@ export function deleteUserById(userIdOrUsername, deletePhysicalFiles = true) {
  */
 export function getSettings() {
   const store = getStore();
+  const settings = { ...(store.settings || { gdriveLink: "" }) };
+  if (!settings.schoolName) {
+    settings.schoolName = process.env.SCHOOL_NAME || "SMA Negeri 1 Gedeg";
+  }
   return {
-    settings: store.settings || { gdriveLink: "" }
+    settings
   };
 }
 

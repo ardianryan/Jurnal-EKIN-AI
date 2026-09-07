@@ -277,23 +277,31 @@ export async function syncWithBackend() {
       }
       if (data && data.settings) {
         if (data.settings.schoolLogo !== undefined) {
-          const localLogo = localStorage.getItem(SCHOOL_LOGO_KEY);
-          if (data.settings.schoolLogo && !localLogo) {
+          if (data.settings.schoolLogo) {
             localStorage.setItem(SCHOOL_LOGO_KEY, data.settings.schoolLogo);
+          } else {
+            localStorage.removeItem(SCHOOL_LOGO_KEY);
           }
         }
         if (data.settings.schoolFavicon !== undefined) {
-          const localFavicon = localStorage.getItem(SCHOOL_FAVICON_KEY);
-          if (data.settings.schoolFavicon && !localFavicon) {
+          if (data.settings.schoolFavicon) {
             localStorage.setItem(SCHOOL_FAVICON_KEY, data.settings.schoolFavicon);
             applyDynamicFavicon(data.settings.schoolFavicon);
+          } else {
+            localStorage.removeItem(SCHOOL_FAVICON_KEY);
           }
         }
         if (data.settings.schoolName) {
-          const localName = localStorage.getItem(SCHOOL_NAME_KEY);
-          if (!localName) {
-            localStorage.setItem(SCHOOL_NAME_KEY, data.settings.schoolName);
-          }
+          localStorage.setItem(SCHOOL_NAME_KEY, data.settings.schoolName);
+        }
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("ekinerja_school_changed", {
+            detail: {
+              schoolName: data.settings.schoolName,
+              schoolLogo: data.settings.schoolLogo,
+              schoolFavicon: data.settings.schoolFavicon
+            }
+          }));
         }
       }
       return {
@@ -704,10 +712,74 @@ export async function fetchSsoConfig() {
     if (res.ok) {
       const data = await res.json();
       localStorage.setItem(SSO_CONFIG_CACHE_KEY, JSON.stringify(data));
+      if (data.schoolName) {
+        localStorage.setItem(SCHOOL_NAME_KEY, data.schoolName);
+      }
+      if (data.schoolLogo !== undefined) {
+        if (data.schoolLogo) {
+          localStorage.setItem(SCHOOL_LOGO_KEY, data.schoolLogo);
+        } else {
+          localStorage.removeItem(SCHOOL_LOGO_KEY);
+        }
+      }
+      if (data.schoolFavicon !== undefined) {
+        if (data.schoolFavicon) {
+          localStorage.setItem(SCHOOL_FAVICON_KEY, data.schoolFavicon);
+          applyDynamicFavicon(data.schoolFavicon);
+        } else {
+          localStorage.removeItem(SCHOOL_FAVICON_KEY);
+        }
+      }
+      if (typeof window !== "undefined" && data.schoolName) {
+        window.dispatchEvent(new CustomEvent("ekinerja_school_changed", {
+          detail: {
+            schoolName: data.schoolName,
+            schoolLogo: data.schoolLogo,
+            schoolFavicon: data.schoolFavicon
+          }
+        }));
+      }
       return data;
     }
   } catch (e) {}
   return getCachedSsoConfig();
+}
+
+/**
+ * Mengambil nama sekolah, logo, dan favicon resmi dari backend secara publik (tanpa login)
+ */
+export async function fetchPublicSchoolSettings() {
+  try {
+    const res = await fetch("/api/public-settings");
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.schoolName) {
+        localStorage.setItem(SCHOOL_NAME_KEY, data.schoolName);
+      }
+      if (data && data.schoolLogo !== undefined) {
+        if (data.schoolLogo) {
+          localStorage.setItem(SCHOOL_LOGO_KEY, data.schoolLogo);
+        } else {
+          localStorage.removeItem(SCHOOL_LOGO_KEY);
+        }
+      }
+      if (data && data.schoolFavicon !== undefined) {
+        if (data.schoolFavicon) {
+          localStorage.setItem(SCHOOL_FAVICON_KEY, data.schoolFavicon);
+          applyDynamicFavicon(data.schoolFavicon);
+        } else {
+          localStorage.removeItem(SCHOOL_FAVICON_KEY);
+        }
+      }
+      if (typeof window !== "undefined" && data && data.schoolName) {
+        window.dispatchEvent(new CustomEvent("ekinerja_school_changed", {
+          detail: data
+        }));
+      }
+      return data;
+    }
+  } catch (e) {}
+  return null;
 }
 
 export async function saveSsoConfig(payload) {
@@ -1328,7 +1400,7 @@ export async function executeStorageCleanupByYear({ targetYear, mode = "before_o
 
 
 const SCHOOL_NAME_KEY = "ekinerja_school_name";
-const DEFAULT_SCHOOL_NAME = "SMAN Garuda";
+export const DEFAULT_SCHOOL_NAME = "SMA Negeri 1 Gedeg";
 
 /**
  * Mendapatkan Nama Sekolah / Instansi secara dinamis
@@ -1346,15 +1418,21 @@ export function getSchoolName() {
  */
 export function setSchoolName(name) {
   if (!name || !name.trim()) return DEFAULT_SCHOOL_NAME;
+  const clean = name.trim();
   try {
-    localStorage.setItem(SCHOOL_NAME_KEY, name.trim());
+    localStorage.setItem(SCHOOL_NAME_KEY, clean);
     pushSyncToBackend({
       settings: {
-        schoolName: name.trim()
+        schoolName: clean
       }
     });
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("ekinerja_school_changed", {
+        detail: { schoolName: clean }
+      }));
+    }
   } catch (e) {}
-  return name.trim();
+  return clean;
 }
 
 // -------------------------------------------------------------

@@ -39,7 +39,7 @@ import {
 export default function PegawaiSection({ 
   currentUser, 
   onUserChanged,
-  schoolName = "SMAN Garuda",
+  schoolName = "SMA Negeri 1 Gedeg",
   onNavigate
 }) {
   const [accounts, setAccounts] = useState(() => getAccounts());
@@ -57,7 +57,7 @@ export default function PegawaiSection({
     nip: "",
     pangkat: "Pengatur Muda / II/a",
     jabatan: "PENGADMINISTRASI PERKANTORAN",
-    unitKerja: schoolName || "SMAN Garuda",
+    unitKerja: schoolName || "SMA Negeri 1 Gedeg",
     allowEnvKey: true
   });
 
@@ -120,7 +120,7 @@ export default function PegawaiSection({
       nip: "",
       pangkat: "Pengatur Muda / II/a",
       jabatan: "PENGADMINISTRASI PERKANTORAN",
-      unitKerja: schoolName || getSchoolName() || "SMAN Garuda",
+      unitKerja: schoolName || getSchoolName() || "SMA Negeri 1 Gedeg",
       allowEnvKey: true
     });
     setFormError("");
@@ -137,7 +137,7 @@ export default function PegawaiSection({
       nip: acc.nip || "",
       pangkat: acc.pangkat || "Pengatur Muda / II/a",
       jabatan: acc.jabatan || "PENGADMINISTRASI PERKANTORAN",
-      unitKerja: acc.unitKerja || schoolName || "SMAN Garuda",
+      unitKerja: acc.unitKerja || schoolName || "SMA Negeri 1 Gedeg",
       allowEnvKey: acc.allowEnvKey !== false
     });
     setFormError("");
@@ -1217,7 +1217,7 @@ export default function PegawaiSection({
                   className="input-field"
                   value={formData.unitKerja}
                   onChange={(e) => setFormData({ ...formData, unitKerja: e.target.value })}
-                  placeholder="misal: SMAN Garuda"
+                  placeholder="misal: SMA Negeri 1 Gedeg"
                 />
               </div>
             </div>

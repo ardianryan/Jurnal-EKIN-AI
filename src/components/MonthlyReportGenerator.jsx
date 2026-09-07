@@ -46,7 +46,7 @@ export default function MonthlyReportGenerator({
   journals = [],
   pendekatan = "KUANTITATIF",
   onSyncLinkToRhk,
-  schoolName = "SMAN Garuda",
+  schoolName = "SMA Negeri 1 Gedeg",
   schoolLogo = null
 }) {
   const [selectedMonth, setSelectedMonth] = useState(() => String(new Date().getMonth() + 1).padStart(2, "0"));

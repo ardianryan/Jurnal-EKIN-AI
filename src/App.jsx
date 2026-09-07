@@ -35,6 +35,7 @@ import {
   getSchoolName,
   setSchoolName,
   getSchoolLogo,
+  fetchPublicSchoolSettings,
   applyDynamicFavicon
 } from "./services/accountService";
 
@@ -87,6 +88,15 @@ export default function App() {
         if (res.aiConfig) {
           setServerAiConfig(res.aiConfig);
         }
+        if (res.settings) {
+          if (res.settings.schoolName) {
+            setSchoolNameState(res.settings.schoolName);
+            document.title = `E-Kinerja | ${res.settings.schoolName}`;
+          }
+          if (res.settings.schoolLogo !== undefined) {
+            setSchoolLogoState(res.settings.schoolLogo || null);
+          }
+        }
         if (Array.isArray(res.journals)) {
           isRemoteSyncRef.current = true;
           setJournals(prev => {
@@ -137,6 +147,15 @@ export default function App() {
   // Inisialisasi Database Akun & Sinkronisasi Awal dengan Backend Store (Telegram Bot)
   useEffect(() => {
     initAccountDatabase();
+    fetchPublicSchoolSettings().then(cfg => {
+      if (cfg?.schoolName) {
+        setSchoolNameState(cfg.schoolName);
+        document.title = `E-Kinerja | ${cfg.schoolName}`;
+      }
+      if (cfg?.schoolLogo !== undefined) {
+        setSchoolLogoState(cfg.schoolLogo || null);
+      }
+    });
     fetchTelegramBotStatus().then(cfg => {
       if (cfg) setBotConfig(cfg);
     });
@@ -356,8 +375,21 @@ export default function App() {
     const handleLogoChange = (e) => {
       setSchoolLogoState(e.detail?.logo || null);
     };
+    const handleSchoolChange = (e) => {
+      if (e.detail?.schoolName) {
+        setSchoolNameState(e.detail.schoolName);
+        document.title = `E-Kinerja | ${e.detail.schoolName}`;
+      }
+      if (e.detail?.schoolLogo !== undefined) {
+        setSchoolLogoState(e.detail.schoolLogo || null);
+      }
+    };
     window.addEventListener("ekinerja_logo_changed", handleLogoChange);
-    return () => window.removeEventListener("ekinerja_logo_changed", handleLogoChange);
+    window.addEventListener("ekinerja_school_changed", handleSchoolChange);
+    return () => {
+      window.removeEventListener("ekinerja_logo_changed", handleLogoChange);
+      window.removeEventListener("ekinerja_school_changed", handleSchoolChange);
+    };
   }, [schoolName]);
 
   const handleUpdateSchoolName = (newName) => {

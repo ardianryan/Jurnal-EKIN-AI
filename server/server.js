@@ -365,7 +365,25 @@ const server = http.createServer(async (req, res) => {
       redirectUri: redirectUri || "",
       registrationMode: config.registrationMode,
       closedRegistrationUrl: config.closedRegistrationUrl,
-      closedRegistrationMessage: config.closedRegistrationMessage
+      closedRegistrationMessage: config.closedRegistrationMessage,
+      schoolName: store.settings?.schoolName || process.env.SCHOOL_NAME || "SMA Negeri 1 Gedeg",
+      schoolLogo: store.settings?.schoolLogo || null,
+      schoolFavicon: store.settings?.schoolFavicon || null
+    }));
+    return;
+  }
+
+  // --------------------------------------------------------------------------
+  // Endpoint Pengaturan Publik (Nama Sekolah, Logo & Favicon untuk Semua Browser)
+  // --------------------------------------------------------------------------
+  if (pathname === "/api/public-settings" || pathname === "/api/settings/public") {
+    const store = getStore();
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({
+      schoolName: store.settings?.schoolName || process.env.SCHOOL_NAME || "SMA Negeri 1 Gedeg",
+      schoolLogo: store.settings?.schoolLogo || null,
+      schoolFavicon: store.settings?.schoolFavicon || null
     }));
     return;
   }

@@ -20,7 +20,7 @@ import {
   Cpu,
   BadgeCheck
 } from "lucide-react";
-import { authenticate, registerAccount, getSchoolName, getSchoolLogo, fetchSsoConfig, getCachedSsoConfig } from "../services/accountService";
+import { authenticate, registerAccount, getSchoolName, getSchoolLogo, fetchSsoConfig, getCachedSsoConfig, fetchPublicSchoolSettings } from "../services/accountService";
 
 // Helper membaca posisi tab dari URL hash atau localStorage
 const getInitialAuthTab = () => {
@@ -42,7 +42,14 @@ export default function LoginPage({
 }) {
   const [activeTab, setActiveTabState] = useState(getInitialAuthTab);
   const [ssoConfig, setSsoConfig] = useState(() => getCachedSsoConfig());
+  const [schoolName, setSchoolName] = useState(() => propSchoolName || getSchoolName());
   const [schoolLogo, setSchoolLogo] = useState(() => propSchoolLogo || getSchoolLogo());
+
+  useEffect(() => {
+    if (propSchoolName) {
+      setSchoolName(propSchoolName);
+    }
+  }, [propSchoolName]);
 
   useEffect(() => {
     if (propSchoolLogo !== undefined) {
@@ -63,8 +70,29 @@ export default function LoginPage({
   // Muat konfigurasi SSO & cek pesan error dari URL callback / redirect
   useEffect(() => {
     fetchSsoConfig().then(cfg => {
-      if (cfg) setSsoConfig(cfg);
+      if (cfg) {
+        setSsoConfig(cfg);
+        if (cfg.schoolName) setSchoolName(cfg.schoolName);
+        if (cfg.schoolLogo !== undefined) setSchoolLogo(cfg.schoolLogo);
+      }
     });
+
+    fetchPublicSchoolSettings().then(data => {
+      if (data?.schoolName) setSchoolName(data.schoolName);
+      if (data?.schoolLogo !== undefined) setSchoolLogo(data.schoolLogo);
+    });
+
+    const handleSchoolChange = (e) => {
+      if (e.detail?.schoolName) setSchoolName(e.detail.schoolName);
+      if (e.detail?.schoolLogo !== undefined) setSchoolLogo(e.detail.schoolLogo);
+    };
+
+    const handleLogoChange = (e) => {
+      if (e.detail?.logo !== undefined) setSchoolLogo(e.detail.logo);
+    };
+
+    window.addEventListener("ekinerja_school_changed", handleSchoolChange);
+    window.addEventListener("ekinerja_logo_changed", handleLogoChange);
 
     const checkUrlError = () => {
       // Periksa query params baik di search maupun hash (misal #/login?error=...)
@@ -116,7 +144,11 @@ export default function LoginPage({
       window.location.hash = `#${initial}`;
     }
 
-    return () => window.removeEventListener("hashchange", syncFromHash);
+    return () => {
+      window.removeEventListener("hashchange", syncFromHash);
+      window.removeEventListener("ekinerja_school_changed", handleSchoolChange);
+      window.removeEventListener("ekinerja_logo_changed", handleLogoChange);
+    };
   }, []);
 
   // State Login
@@ -140,8 +172,6 @@ export default function LoginPage({
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-
-  const schoolName = propSchoolName || getSchoolName();
 
   const handleLoginSubmit = async (e) => {
     e.preventDefault();

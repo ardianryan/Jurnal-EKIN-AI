@@ -60,7 +60,7 @@ import {
 
 export default function SettingsSection({
   currentUser,
-  schoolName = "SMAN Garuda",
+  schoolName = "SMA Negeri 1 Gedeg",
   onUpdateSchoolName,
   schoolLogo = null,
   onUpdateSchoolLogo,
@@ -636,7 +636,7 @@ export default function SettingsSection({
                         className="input-field"
                         value={localSchoolName}
                         onChange={(e) => setLocalSchoolName(e.target.value)}
-                        placeholder="Contoh: SMAN Garuda / SMAN 1 Garung"
+                        placeholder="Contoh: SMA Negeri 1 Gedeg / SMAN 1 Garung"
                         style={{ flex: "1 1 300px", fontWeight: "600", fontSize: "0.95rem" }}
                         required
                       />
@@ -663,7 +663,7 @@ export default function SettingsSection({
                   }}>
                     <School size={16} style={{ color: "var(--accent-primary)", flexShrink: 0 }} />
                     <span>
-                      Pratinjau saat ini: <strong>{localSchoolName || "SMAN Garuda"}</strong> (Otomatis tersinkronisasi tanpa reload)
+                      Pratinjau saat ini: <strong>{localSchoolName || "SMA Negeri 1 Gedeg"}</strong> (Otomatis tersinkronisasi tanpa reload)
                     </span>
                   </div>
                 </form>
@@ -866,7 +866,7 @@ export default function SettingsSection({
                             overflow: "hidden",
                             textOverflow: "ellipsis"
                           }}>
-                            E-Kinerja | {localSchoolName || "SMAN Garuda"}
+                            E-Kinerja | {localSchoolName || "SMA Negeri 1 Gedeg"}
                           </span>
                           <span style={{ fontSize: "0.65rem", color: "var(--text-muted)", marginLeft: "auto", cursor: "default" }}>
                             ✕
