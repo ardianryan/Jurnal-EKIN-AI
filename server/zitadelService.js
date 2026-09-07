@@ -36,6 +36,51 @@ export function getZitadelConfig(storeSettings = {}) {
 }
 
 /**
+ * Decode string Base64 / Base64URL secara aman (mendukung padding dan unpadded format Zitadel)
+ */
+export function decodeBase64Safe(str) {
+  if (typeof str !== "string") return str;
+  const trimmed = str.trim();
+  if (!trimmed) return trimmed;
+
+  // Cek apakah string tampak seperti format Base64 / Base64URL
+  if (/^[A-Za-z0-9+/_=-]+$/.test(trimmed)) {
+    try {
+      let normalized = trimmed.replace(/-/g, "+").replace(/_/g, "/");
+      while (normalized.length % 4 !== 0) {
+        normalized += "=";
+      }
+      const buf = Buffer.from(normalized, "base64");
+      const decoded = buf.toString("utf8");
+      // Pastikan hasil decode adalah teks valid manusia (tidak mengandung byte korup \ufffd)
+      if (decoded && !decoded.includes("\ufffd") && /^[\p{L}\p{N}\s\-.,_/:@()'"#+]+$/u.test(decoded)) {
+        return decoded;
+      }
+    } catch (e) {}
+  }
+  return trimmed;
+}
+
+/**
+ * Decode payload JWT secara aman tanpa dependensi eksternal
+ */
+export function decodeJwtPayload(token) {
+  if (!token || typeof token !== "string") return {};
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return {};
+    let payloadBase64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    while (payloadBase64.length % 4 !== 0) {
+      payloadBase64 += "=";
+    }
+    const jsonStr = Buffer.from(payloadBase64, "base64").toString("utf8");
+    return JSON.parse(jsonStr);
+  } catch (e) {
+    return {};
+  }
+}
+
+/**
  * Validasi dan ekstraksi profil/metadata pengguna dari Zitadel
  * Strict Rules:
  * - Wajib memiliki metadata peran sebagai 'guru' atau 'tendik' (atau superadmin)
@@ -43,26 +88,19 @@ export function getZitadelConfig(storeSettings = {}) {
  * - Metadata kosong atau tidak memenuhi syarat DITOLAK
  */
 export function validateZitadelMetadata(rawMetadata = {}, userClaims = {}) {
-  // 1. Normalisasi metadata kunci (case-insensitive / format base64)
+  // 1. Normalisasi metadata kunci (case-insensitive / auto decode base64 & base64url)
   const meta = {};
-  if (typeof rawMetadata === "object" && rawMetadata !== null) {
-    for (const [key, value] of Object.entries(rawMetadata)) {
-      const cleanKey = String(key).toLowerCase().trim();
-      let cleanVal = value;
-      if (typeof value === "string") {
-        const trimmed = value.trim();
-        // Cek kemungkinan Base64
-        if (/^[A-Za-z0-9+/]+={0,2}$/.test(trimmed) && trimmed.length % 4 === 0) {
-          try {
-            const decoded = Buffer.from(trimmed, "base64").toString("utf8");
-            if (decoded && /^[\p{L}\p{N}\s\-.,_/:@()]+$/u.test(decoded)) {
-              cleanVal = decoded;
-            }
-          } catch (e) {}
-        }
-      }
-      meta[cleanKey] = cleanVal;
-    }
+  
+  // Gabungkan klaim metadata dari berbagai sumber (rawMetadata dan userClaims)
+  const claimMeta = userClaims["urn:zitadel:iam:user:metadata"] || userClaims.metadata || {};
+  const combinedRaw = { 
+    ...(typeof claimMeta === "object" && claimMeta !== null ? claimMeta : {}), 
+    ...(typeof rawMetadata === "object" && rawMetadata !== null ? rawMetadata : {}) 
+  };
+
+  for (const [key, value] of Object.entries(combinedRaw)) {
+    const cleanKey = String(key).toLowerCase().trim();
+    meta[cleanKey] = decodeBase64Safe(value);
   }
 
   // 2. Kumpulkan seluruh indikator peran/role
@@ -71,23 +109,22 @@ export function validateZitadelMetadata(rawMetadata = {}, userClaims = {}) {
   const checkAndPushRole = (val) => {
     if (!val) return;
     if (typeof val === "string") {
-      roleCandidates.push(val.toLowerCase().trim());
+      const decodedVal = decodeBase64Safe(val);
+      roleCandidates.push(String(decodedVal).toLowerCase().trim());
     } else if (Array.isArray(val)) {
       val.forEach(item => checkAndPushRole(item));
-    } else if (typeof val === "object") {
+    } else if (typeof val === "object" && val !== null) {
       Object.keys(val).forEach(k => checkAndPushRole(k));
-      Object.values(val).forEach(v => {
-        if (typeof v === "string") checkAndPushRole(v);
-      });
+      Object.values(val).forEach(v => checkAndPushRole(v));
     }
   };
 
-  // Periksa metadata
-  ["role", "roles", "tipe", "tipe_pegawai", "jenis", "jenis_ptk", "jenis_kepegawaian", "jabatan", "kategori", "kelompok", "group", "groups", "status"].forEach(k => {
-    if (meta[k]) checkAndPushRole(meta[k]);
-  });
+  // Periksa seluruh nilai dalam metadata yang telah dinormalisasi
+  for (const [k, v] of Object.entries(meta)) {
+    if (typeof v === "string") checkAndPushRole(v);
+  }
 
-  // Periksa user claims Zitadel
+  // Periksa user claims Zitadel (project roles, group, role langsung)
   if (userClaims["urn:zitadel:iam:org:project:roles"]) {
     checkAndPushRole(userClaims["urn:zitadel:iam:org:project:roles"]);
   }
@@ -111,6 +148,33 @@ export function validateZitadelMetadata(rawMetadata = {}, userClaims = {}) {
   });
   if (!rawNip && userClaims.nip) rawNip = String(userClaims.nip).trim();
   if (!rawNip && userClaims.nomor_induk) rawNip = String(userClaims.nomor_induk).trim();
+
+  // Fallback 1: periksa apakah ada nilai di metadata yang berupa angka NIP (8 - 18 digit)
+  if (!rawNip) {
+    for (const [k, v] of Object.entries(meta)) {
+      if (typeof v === "string") {
+        const digits = v.replace(/\D/g, "");
+        if (digits.length >= 8 && (k.includes("nip") || k.includes("induk") || digits.length === 18)) {
+          rawNip = digits;
+          break;
+        }
+      }
+    }
+  }
+
+  // Fallback 2: periksa jika username / preferred_username adalah NIP (deretan angka >= 8 digit)
+  if (!rawNip && userClaims.preferred_username) {
+    const prefDigits = String(userClaims.preferred_username).replace(/\D/g, "");
+    if (prefDigits.length >= 8 && (prefDigits.length === 18 || prefDigits.startsWith("19") || prefDigits.startsWith("20"))) {
+      rawNip = prefDigits;
+    }
+  }
+  if (!rawNip && userClaims.username) {
+    const uDigits = String(userClaims.username).replace(/\D/g, "");
+    if (uDigits.length >= 8 && (uDigits.length === 18 || uDigits.startsWith("19") || uDigits.startsWith("20"))) {
+      rawNip = uDigits;
+    }
+  }
 
   const digitsOnlyNip = rawNip.replace(/\D/g, "");
   const hasValidNip = Boolean(digitsOnlyNip && digitsOnlyNip.length >= 8);
@@ -241,26 +305,35 @@ export async function exchangeZitadelCode(code, state, config, redirectUri) {
   const userInfo = await userRes.json();
   console.log("📋 [Zitadel Raw UserInfo]:", JSON.stringify(userInfo));
 
+  // Ambil claims tambahan dari ID Token jika tersedia
+  let idTokenClaims = {};
+  if (tokenData.id_token) {
+    idTokenClaims = decodeJwtPayload(tokenData.id_token);
+    console.log("📋 [Zitadel ID Token Claims]:", JSON.stringify(idTokenClaims));
+  }
+
+  const mergedClaims = { ...idTokenClaims, ...userInfo };
+
   // Ekstrak metadata khusus (Zitadel menyimpan metadata di claim 'urn:zitadel:iam:user:metadata' atau langsung)
-  let rawMetadata = userInfo["urn:zitadel:iam:user:metadata"] || userInfo.metadata || {};
+  let rawMetadata = mergedClaims["urn:zitadel:iam:user:metadata"] || mergedClaims.metadata || {};
   
-  // Jika metadata berbentuk object berpasangan base64 / plain
+  // Jika metadata berbentuk object berpasangan base64 / plain, lakukan decode otomatis
   const metadataObj = {};
   if (typeof rawMetadata === "object" && rawMetadata !== null) {
     for (const [k, v] of Object.entries(rawMetadata)) {
-      metadataObj[k] = v;
+      metadataObj[k] = decodeBase64Safe(v);
     }
   }
 
-  // Jika ada custom claim langsung di payload userInfo
-  ["role", "nip", "nik", "academic_year_id", "uuid", "source"].forEach(key => {
-    if (userInfo[key] && !metadataObj[key]) {
-      metadataObj[key] = userInfo[key];
+  // Jika ada custom claim langsung di payload userInfo / idToken
+  ["role", "nip", "nik", "academic_year_id", "uuid", "source", "ptk_id", "dapodik_id"].forEach(key => {
+    if (mergedClaims[key] && !metadataObj[key]) {
+      metadataObj[key] = decodeBase64Safe(mergedClaims[key]);
     }
   });
 
   return {
-    userInfo,
+    userInfo: mergedClaims,
     metadata: metadataObj
   };
 }
