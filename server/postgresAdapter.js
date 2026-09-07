@@ -195,7 +195,10 @@ export async function initPostgresDatabase() {
         "ALTER TABLE journals ADD COLUMN IF NOT EXISTS foto_url TEXT",
         "ALTER TABLE journals ADD COLUMN IF NOT EXISTS file_url TEXT",
         "ALTER TABLE journals ADD COLUMN IF NOT EXISTS updated_at VARCHAR(50)",
-        "ALTER TABLE registration_codes ADD COLUMN IF NOT EXISTS allow_env_key BOOLEAN DEFAULT TRUE"
+        "ALTER TABLE registration_codes ADD COLUMN IF NOT EXISTS allow_env_key BOOLEAN DEFAULT TRUE",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS personal_ai_provider VARCHAR(50) DEFAULT 'gemini'",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS personal_ai_base_url TEXT DEFAULT ''",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS personal_ai_model VARCHAR(150) DEFAULT ''"
       ];
 
       for (const sql of migrations) {
@@ -366,6 +369,9 @@ export async function loadStoreFromPostgres() {
         defaultJam: r.default_jam || "08:00 - 16:00",
         allowEnvKey: Boolean(r.allow_env_key),
         personalApiKey: r.personal_api_key || "",
+        personalAiProvider: r.personal_ai_provider || "gemini",
+        personalAiBaseUrl: r.personal_ai_base_url || "",
+        personalAiModel: r.personal_ai_model || "",
         createdAt: r.created_at,
         updatedAt: r.updated_at
       }));
@@ -495,8 +501,8 @@ export async function syncStoreToPostgres(store) {
       if (Array.isArray(store.accounts)) {
         for (const a of store.accounts) {
           await client.query(`
-            INSERT INTO accounts (id, username, password, role, nama, nip, nik, sso_uuid, sso_role, sso_source, pangkat, jabatan, unit_kerja, gdrive_link, default_jam, allow_env_key, personal_api_key, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+            INSERT INTO accounts (id, username, password, role, nama, nip, nik, sso_uuid, sso_role, sso_source, pangkat, jabatan, unit_kerja, gdrive_link, default_jam, allow_env_key, personal_api_key, personal_ai_provider, personal_ai_base_url, personal_ai_model, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
             ON CONFLICT (id) DO UPDATE SET
               username = EXCLUDED.username,
               password = EXCLUDED.password,
@@ -514,6 +520,9 @@ export async function syncStoreToPostgres(store) {
               default_jam = EXCLUDED.default_jam,
               allow_env_key = EXCLUDED.allow_env_key,
               personal_api_key = EXCLUDED.personal_api_key,
+              personal_ai_provider = EXCLUDED.personal_ai_provider,
+              personal_ai_base_url = EXCLUDED.personal_ai_base_url,
+              personal_ai_model = EXCLUDED.personal_ai_model,
               updated_at = EXCLUDED.updated_at
           `, [
             a.id,
@@ -533,6 +542,9 @@ export async function syncStoreToPostgres(store) {
             a.defaultJam || "08:00 - 16:00",
             a.allowEnvKey !== false,
             a.personalApiKey || null,
+            a.personalAiProvider || "gemini",
+            a.personalAiBaseUrl || "",
+            a.personalAiModel || "",
             a.createdAt || new Date().toISOString(),
             new Date().toISOString()
           ]);

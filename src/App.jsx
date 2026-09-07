@@ -400,10 +400,13 @@ export default function App() {
     }
   };
 
-  const handleSaveUserKey = (personalKey, usePersonal, modeChoice = null) => {
+  const handleSaveUserKey = (personalKey, usePersonal, modeChoice = null, extraAiConfig = {}) => {
     const updatedUser = {
       ...currentUser,
       personalApiKey: personalKey,
+      personalAiProvider: extraAiConfig?.provider || currentUser?.personalAiProvider || "gemini",
+      personalAiBaseUrl: extraAiConfig?.baseUrl ?? (currentUser?.personalAiBaseUrl || ""),
+      personalAiModel: extraAiConfig?.model ?? (currentUser?.personalAiModel || ""),
       usePersonalKey: Boolean(usePersonal),
       aiModeChoice: modeChoice || (usePersonal ? "personal" : (personalKey ? "personal" : "env"))
     };

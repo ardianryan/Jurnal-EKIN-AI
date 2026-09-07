@@ -145,21 +145,37 @@ const getBotConfig = () => {
 };
 
 const getAiConfig = () => {
-  const rawKey = (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || "")
-    .trim()
-    .replace(/^["']|["']$/g, "")
-    .trim();
-  const hasServerKey = Boolean(
-    rawKey && 
-    !rawKey.includes("PASTE_HERE") && 
-    !rawKey.includes("KEY_ANDA") && 
-    rawKey.length > 10
-  );
+  let store = {};
+  try {
+    store = getStore() || {};
+  } catch (e) {}
+  const savedAi = store?.settings?.ai || {};
+
+  const envProvider = (process.env.AI_PROVIDER || "").toLowerCase().trim();
+  const hasOpenAiEnv = Boolean(process.env.OPENAI_API_KEY || process.env.AI_API_KEY);
+  const rawGeminiKey = (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || "")
+    .trim().replace(/^["']|["']$/g, "").trim();
+  const hasGeminiEnv = Boolean(rawGeminiKey && !rawGeminiKey.includes("PASTE_HERE") && rawGeminiKey.length > 10);
+
+  let provider = savedAi.provider || envProvider || (hasOpenAiEnv ? "openai" : "gemini");
+  let baseUrl = savedAi.baseUrl || process.env.OPENAI_BASE_URL || process.env.AI_BASE_URL || "https://api.9router.com/v1";
+  let model = savedAi.model || (provider === "openai" ? (process.env.OPENAI_MODEL || process.env.AI_MODEL || "openai/gpt-4o-mini") : (process.env.GEMINI_MODEL || "gemini-3.5-flash-lite"));
+  let hasServerKey = false;
+
+  if (provider === "openai") {
+    const rawKey = (savedAi.apiKey || process.env.OPENAI_API_KEY || process.env.AI_API_KEY || "").trim();
+    hasServerKey = Boolean(rawKey && rawKey.length > 5);
+  } else {
+    const rawKey = (savedAi.apiKey || rawGeminiKey).trim();
+    hasServerKey = Boolean(rawKey && !rawKey.includes("PASTE_HERE") && rawKey.length > 10);
+  }
+
   return {
     enabled: hasServerKey,
-    hasServerKey: hasServerKey,
-    provider: "gemini",
-    model: "gemini-3.5-flash-lite"
+    hasServerKey,
+    provider,
+    baseUrl,
+    model
   };
 };
 
@@ -931,8 +947,9 @@ const server = http.createServer(async (req, res) => {
   }
 
   // --------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // Endpoint AI Polish Server-Side (/api/ai/polish)
-  // Aman: API Key & URL Google Gemini 100% diproses di server (tidak bocor ke browser)
+  // Aman: Mendukung OpenAI-Compatible (9router, Ollama, OpenAI) & Google Gemini
   // --------------------------------------------------------------------------
   if (req.method === "POST" && pathname === "/api/ai/polish") {
     let body = "";
@@ -947,20 +964,25 @@ const server = http.createServer(async (req, res) => {
       } catch (e) {}
 
       try {
-        const rawServerKey = (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || "")
-          .trim()
-          .replace(/^["']|["']$/g, "")
-          .trim();
-        const cleanApiKey = (payload.apiKey && payload.apiKey !== "server-managed" && !payload.apiKey.startsWith("server-"))
-          ? payload.apiKey.trim()
-          : rawServerKey;
+        const aiConfig = getAiConfig();
+        const provider = payload.provider || aiConfig.provider;
+        const baseUrl = payload.baseUrl || aiConfig.baseUrl;
+        const model = payload.model || aiConfig.model;
+        
+        let apiKey = payload.apiKey;
+        if (!apiKey || apiKey === "server-managed" || apiKey.startsWith("server-")) {
+          apiKey = ""; // aiServiceNode will read appropriate server key
+        }
 
         const { polishJournalNode } = await import("./aiServiceNode.js");
         const result = await polishJournalNode({
           rawText: payload.rawText || "",
           jabatan: payload.jabatan || "",
           unitKerja: payload.unitKerja || "",
-          apiKey: cleanApiKey
+          apiKey,
+          provider,
+          baseUrl,
+          model
         });
 
         console.log(`✨ [API /api/ai/polish] Selesai memoles jurnal. Sumber: ${result.source || "offline"}`);
@@ -985,6 +1007,98 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // --------------------------------------------------------------------------
+  // Endpoint AI Generate SKP Server-Side (/api/ai/generate-skp)
+  // Aman: Mendukung OpenAI-Compatible (9router, Ollama, OpenAI) & Google Gemini
+  // --------------------------------------------------------------------------
+  if (req.method === "POST" && pathname === "/api/ai/generate-skp") {
+    let body = "";
+    req.on("data", chunk => {
+      body += chunk;
+      if (body.length > 50000) req.destroy();
+    });
+    req.on("end", async () => {
+      let payload = {};
+      try {
+        payload = JSON.parse(body);
+      } catch (e) {}
+
+      try {
+        const aiConfig = getAiConfig();
+        const provider = payload.provider || aiConfig.provider;
+        const baseUrl = payload.baseUrl || aiConfig.baseUrl;
+        const model = payload.model || aiConfig.model;
+        
+        let apiKey = payload.apiKey;
+        if (!apiKey || apiKey === "server-managed" || apiKey.startsWith("server-")) {
+          apiKey = "";
+        }
+
+        const { generateSkpNode } = await import("./aiServiceNode.js");
+        const result = await generateSkpNode({
+          jabatan: payload.jabatan || "",
+          unitKerja: payload.unitKerja || "",
+          jenjang: payload.jenjang || "Ahli Pertama",
+          tupoksiTambahan: payload.tupoksiTambahan || "",
+          apiKey,
+          provider,
+          baseUrl,
+          model
+        });
+
+        console.log(`✨ [API /api/ai/generate-skp] Selesai merumuskan SKP. Model: ${result.model || model}`);
+
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        console.error("❌ [API /api/ai/generate-skp Error]:", err.message);
+        res.statusCode = 500;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ error: err.message || "Gagal menghasilkan draf SKP" }));
+      }
+    });
+    return;
+  }
+
+  // Endpoint Pengaturan AI Sistem (Superadmin)
+  if (pathname === "/api/settings/ai" && req.method === "POST") {
+    let body = "";
+    req.on("data", chunk => {
+      body += chunk;
+      if (body.length > 50000) req.destroy();
+    });
+    req.on("end", () => {
+      try {
+        const payload = JSON.parse(body || "{}");
+        const store = getStore();
+        if (!store.settings) store.settings = {};
+
+        store.settings.ai = {
+          ...store.settings.ai,
+          provider: payload.provider || "gemini",
+          baseUrl: payload.baseUrl || "https://api.9router.com/v1",
+          model: payload.model || "",
+          apiKey: payload.apiKey || store.settings.ai?.apiKey || ""
+        };
+
+        saveStore(store);
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ 
+          success: true, 
+          message: "Pengaturan AI Sistem berhasil disimpan.",
+          config: getAiConfig()
+        }));
+      } catch (e) {
+        res.statusCode = 400;
+        res.setHeader("Content-Type", "application/json");
+        res.end(JSON.stringify({ success: false, error: e.message }));
+      }
+    });
+    return;
+  }
+
   // Handler Status Konfigurasi Bot Telegram
   if (pathname === "/api/bot-status") {
     res.setHeader("Content-Type", "application/json");
@@ -992,7 +1106,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Handler Status Konfigurasi Gemini AI Server-Side (Aman tanpa membocorkan API Key)
+  // Handler Status Konfigurasi AI Server-Side (Gemini & OpenAI / 9router)
   if (pathname === "/api/ai-status" || pathname === "/api/ai/status") {
     res.setHeader("Content-Type", "application/json");
     res.end(JSON.stringify(getAiConfig()));

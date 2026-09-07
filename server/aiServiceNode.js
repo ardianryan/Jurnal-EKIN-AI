@@ -1,5 +1,88 @@
 // AI Service Khusus Lingkungan Node.js (Telegram Bot & Backend)
-// Mendukung Google Gemini API (Online) dan Engine NLP Heuristik ASN (Offline)
+// Mendukung OpenAI-Compatible API (9router, OpenRouter, Ollama, OpenAI) & Google Gemini API (Online) & Engine NLP Heuristik ASN (Offline)
+
+/**
+ * Pengurai JSON respons AI yang aman dan toleran terhadap pembungkus markdown (```json ... ```)
+ */
+export function parseAiJsonResponse(text) {
+  if (!text) return null;
+  let cleaned = String(text).trim();
+  // Hapus blok markdown ```json ... ``` jika ada
+  cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (e) {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) {
+      try {
+        return JSON.parse(match[0]);
+      } catch (e2) {}
+    }
+    throw new Error(`Gagal mengurai respons JSON dari AI: ${text.slice(0, 150)}...`);
+  }
+}
+
+/**
+ * Panggil endpoint API berstandar OpenAI (/chat/completions)
+ * Mendukung 9router, OpenRouter, OpenAI Resmi, Ollama, LM Studio, dan custom gateway lainnya.
+ */
+export async function callOpenAiCompatibleApi({
+  apiKey,
+  baseUrl = "https://api.9router.com/v1",
+  model = "openai/gpt-4o-mini",
+  systemPrompt = "",
+  userPrompt = "",
+  timeoutMs = 15000
+}) {
+  let cleanBaseUrl = (baseUrl || "https://api.9router.com/v1").trim().replace(/\/+$/, "");
+  // Hindari duplikasi jika pengguna menempelkan URL lengkap berakhiran /chat/completions
+  cleanBaseUrl = cleanBaseUrl.replace(/\/chat\/completions$/i, "");
+  const endpoint = `${cleanBaseUrl}/chat/completions`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  const messages = [];
+  if (systemPrompt) {
+    messages.push({ role: "system", content: systemPrompt });
+  }
+  messages.push({ role: "user", content: userPrompt });
+
+  try {
+    console.log(`🤖 [OpenAI/9router] Menghubungi endpoint: ${endpoint} (Model: ${model})`);
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey.trim()}`
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: model || "openai/gpt-4o-mini",
+        messages,
+        temperature: 0.3,
+        response_format: { type: "json_object" }
+      })
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`OpenAI API error HTTP ${response.status} ${response.statusText}: ${errText}`);
+    }
+
+    const data = await response.json();
+    const rawContent = data.choices?.[0]?.message?.content;
+    if (!rawContent) {
+      throw new Error("Respons dari OpenAI API kosong atau tidak memiliki pilihan pesan (choices).");
+    }
+
+    return parseAiJsonResponse(rawContent);
+  } catch (err) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
+}
 
 /**
  * Memoles catatan kasaran / santai menjadi bahasa formal kedinasan ASN
@@ -8,35 +91,40 @@ export async function polishJournalNode({
   rawText,
   jabatan = "",
   unitKerja = "",
-  apiKey = ""
+  apiKey = "",
+  provider = "",
+  baseUrl = "",
+  model = ""
 }) {
   if (!rawText || !rawText.trim()) {
     throw new Error("Tuliskan catatan aktivitas kasaran terlebih dahulu!");
   }
 
-  // Jika pemanggil meminta eksplisit mode offline (tanpa memanggil Google API)
+  // Jika pemanggil meminta eksplisit mode offline
   if (apiKey === "offline") {
     return polishJournalOfflineNode(rawText);
   }
 
-  const rawServerKey = (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || "").trim().replace(/^["']|["']$/g, "").trim();
-  const effectiveKey = (apiKey && apiKey !== "server-managed" && !apiKey.startsWith("server-"))
-    ? apiKey.trim()
-    : rawServerKey;
+  // Tentukan Provider Efektif (openai atau gemini)
+  const envProvider = (process.env.AI_PROVIDER || "").toLowerCase().trim();
+  const hasOpenAiEnv = Boolean(process.env.OPENAI_API_KEY || process.env.AI_API_KEY);
+  let effectiveProvider = provider;
+  if (!effectiveProvider) {
+    if (envProvider) effectiveProvider = envProvider;
+    else if (baseUrl && (baseUrl.includes("9router") || baseUrl.includes("openai") || baseUrl.includes("openrouter") || baseUrl.includes("localhost"))) {
+      effectiveProvider = "openai";
+    } else if (hasOpenAiEnv) {
+      effectiveProvider = "openai";
+    } else {
+      effectiveProvider = "gemini";
+    }
+  }
 
-  // 1. Coba gunakan Gemini API jika API Key tersedia
-  if (effectiveKey) {
-    try {
-      const prompt = `
-Anda adalah asisten cerdas ASN Kementerian PANRB & BKN Indonesia.
+  const effectiveBaseUrl = baseUrl || process.env.OPENAI_BASE_URL || process.env.AI_BASE_URL || "https://api.9router.com/v1";
+  const effectiveModel = model || (effectiveProvider === "openai" ? (process.env.OPENAI_MODEL || process.env.AI_MODEL || "openai/gpt-4o-mini") : "gemini-3.5-flash-lite");
+
+  const systemPrompt = `Anda adalah asisten cerdas ASN Kementerian PANRB & BKN Indonesia.
 Tugas Anda: Mengubah catatan aktivitas harian kasaran / santai seorang pegawai ASN menjadi uraian tugas kedinasan yang formal, baku, dan terukur sesuai standar e-Kinerja PermenPAN-RB No. 6 Tahun 2022.
-
-Informasi Pegawai:
-- Jabatan: ${jabatan || "Pegawai ASN"}
-- Unit Kerja: ${unitKerja || "Instansi Pemerintah"}
-
-Catatan Kasaran Pegawai:
-"${rawText}"
 
 Pedoman Substansi & Relevansi Tugas:
 1. Pertahankan substansi dan konteks pekerjaan riil yang ditulis pegawai! JANGAN mengubah jenis kegiatan yang tidak relevan.
@@ -46,36 +134,89 @@ Pedoman Substansi & Relevansi Tugas:
 5. STANDAR TATA BAHASA & SINGKATAN RESMI: DILARANG menggunakan singkatan tidak baku seperti "ttg", "no", "dgn", "yg", "utk", "dlm". Wajib ubah menjadi kata formal baku (misalnya: "ttg" menjadi "tentang", "no" menjadi "Nomor", "bimtek" menjadi "Bimbingan Teknis (Bimtek)", "dinas pendidikan" menjadi "Dinas Pendidikan").
 
 Instruksi Output:
-Kembalikan HANYA format JSON valid tanpa format markdown lain:
+Kembalikan HANYA format JSON valid:
 {
   "aktivitas": "Kalimat formal kedinasan (diawali kata kerja aktif seperti Melaksanakan, Melakukan, Menyusun, Mengoordinasikan, dsb)",
   "outputJumlah": "Output hasil kerja yang terukur (misal: 1 Laporan Kegiatan, 1 Dokumen Berkas Arsip, dsb)",
   "catatan": "Catatan ringkas teknis atau kualitatif terkait hasil tugas"
-}
-`;
+}`;
 
-      const candidateModels = [
+  const userPrompt = `Informasi Pegawai:
+- Jabatan: ${jabatan || "Pegawai ASN"}
+- Unit Kerja: ${unitKerja || "Instansi Pemerintah"}
+
+Catatan Kasaran Pegawai:
+"${rawText}"`;
+
+  // 1. Cabang Provider: OpenAI Compatible (9router, OpenRouter, Ollama, OpenAI)
+  if (effectiveProvider === "openai") {
+    const rawServerOpenAiKey = (process.env.OPENAI_API_KEY || process.env.AI_API_KEY || "").trim().replace(/^["']|["']$/g, "").trim();
+    const effectiveOpenAiKey = (apiKey && apiKey !== "server-managed" && !apiKey.startsWith("server-"))
+      ? apiKey.trim()
+      : rawServerOpenAiKey;
+
+    if (effectiveOpenAiKey) {
+      try {
+        const parsed = await callOpenAiCompatibleApi({
+          apiKey: effectiveOpenAiKey,
+          baseUrl: effectiveBaseUrl,
+          model: effectiveModel,
+          systemPrompt,
+          userPrompt
+        });
+
+        console.log(`🚀 [OpenAI/9router] Sukses memoles jurnal dengan model: ${effectiveModel}`);
+        return {
+          aktivitas: cleanDuplicatePhrases(parsed.aktivitas || rawText),
+          outputJumlah: parsed.outputJumlah || "1 Dokumen / Kegiatan",
+          catatan: parsed.catatan || "Terselesaikan dengan tertib sesuai standar operasional prosedur.",
+          source: `openai (${effectiveModel})`
+        };
+      } catch (err) {
+        console.warn(`[OpenAI/9router Error, beralih ke offline]:`, err.message);
+      }
+    }
+  }
+
+  // 2. Cabang Provider: Google Gemini API
+  const rawServerGeminiKey = (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || "").trim().replace(/^["']|["']$/g, "").trim();
+  const effectiveGeminiKey = (apiKey && apiKey !== "server-managed" && !apiKey.startsWith("server-") && effectiveProvider === "gemini")
+    ? apiKey.trim()
+    : rawServerGeminiKey;
+
+  if (effectiveGeminiKey) {
+    try {
+      const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
+
+      const candidateModels = [];
+      if (effectiveModel && effectiveModel.startsWith("gemini-")) {
+        candidateModels.push(effectiveModel);
+      }
+      candidateModels.push(
         "gemini-3.5-flash-lite",
         "gemini-3.5-flash",
         "gemini-2.5-flash",
         "gemini-2.0-flash",
         "gemini-1.5-flash"
-      ];
-      for (const model of candidateModels) {
+      );
+      // Hapus duplikasi model
+      const uniqueModels = [...new Set(candidateModels)];
+
+      for (const m of uniqueModels) {
         try {
-          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`;
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 12000); // Batas timeout 12 detik
+          const timeoutId = setTimeout(() => controller.abort(), 12000);
 
           const response = await fetch(endpoint, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "x-goog-api-key": effectiveKey
+              "x-goog-api-key": effectiveGeminiKey
             },
             signal: controller.signal,
             body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }],
+              contents: [{ parts: [{ text: fullPrompt }] }],
               generationConfig: {
                 temperature: 0.3,
                 responseMimeType: "application/json"
@@ -88,13 +229,13 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
             const data = await response.json();
             const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
             if (content) {
-              const parsed = JSON.parse(content);
-              console.log(`🚀 [Gemini API] Sukses memoles jurnal dengan model: ${model}`);
+              const parsed = parseAiJsonResponse(content);
+              console.log(`🚀 [Gemini API] Sukses memoles jurnal dengan model: ${m}`);
               return {
                 aktivitas: cleanDuplicatePhrases(parsed.aktivitas || rawText),
                 outputJumlah: parsed.outputJumlah || "1 Dokumen / Kegiatan",
                 catatan: parsed.catatan || "Terselesaikan dengan tertib sesuai standar operasional prosedur.",
-                source: `gemini-ai (${model})`
+                source: `gemini-ai (${m})`
               };
             }
           } else {
@@ -106,13 +247,13 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
               errorDetail = response.statusText || "";
             }
             if (response.status === 429) {
-              console.warn(`[Gemini API] Model ${model} limit 429: ${errorDetail}`);
+              console.warn(`[Gemini API] Model ${m} limit 429: ${errorDetail}`);
             } else {
-              console.warn(`[Gemini API] Model ${model} status ${response.status}: ${errorDetail}`);
+              console.warn(`[Gemini API] Model ${m} status ${response.status}: ${errorDetail}`);
             }
           }
         } catch (mErr) {
-          console.warn(`[Gemini API] Gagal memanggil ${model}:`, mErr.message);
+          console.warn(`[Gemini API] Gagal memanggil ${m}:`, mErr.message);
         }
       }
       console.warn("[Gemini API] Seluruh model Gemini online sedang limit/penuh, beralih ke engine heuristik offline.");
@@ -121,9 +262,212 @@ Kembalikan HANYA format JSON valid tanpa format markdown lain:
     }
   }
 
-  // 2. Engine Heuristik Offline (Cerdas, Cepat, Tanpa API Key)
+  // 3. Engine Heuristik Offline ASN (Cerdas, Cepat, Tanpa API Key)
   console.log("ℹ️ [AI Engine] Memoles jurnal dengan Mode Heuristik Offline ASN.");
   return polishJournalOfflineNode(rawText);
+}
+
+/**
+ * Merumuskan Sasaran Kinerja Pegawai (SKP & RHK) terpadu menggunakan AI
+ * Mendukung OpenAI-Compatible (9router, OpenRouter, Ollama, OpenAI) & Google Gemini API
+ */
+export async function generateSkpNode({
+  jabatan,
+  unitKerja = "",
+  jenjang = "Ahli Pertama",
+  tupoksiTambahan = "",
+  apiKey = "",
+  provider = "",
+  baseUrl = "",
+  model = ""
+}) {
+  if (!jabatan) {
+    throw new Error("Nama jabatan ASN wajib disertakan untuk menghasilkan SKP!");
+  }
+
+  const systemPrompt = `Anda adalah Pakar Kinerja ASN Kementerian PANRB & BKN Indonesia.
+Tugas Anda adalah merumuskan Sasaran Kinerja Pegawai (SKP) sesuai PermenPAN-RB No. 6 Tahun 2022.
+Format keluaran HARUS berupa JSON murni dengan struktur:
+{
+  "intervensiPimpinan": "Rencana Kinerja Pimpinan yang Diintervensi",
+  "rhkList": [
+    {
+      "jenis": "UTAMA atau TAMBAHAN",
+      "rhkPimpinan": "Kalimat RHK Pimpinan",
+      "rhkIndividu": "Kalimat RHK Individu (Diawali: Terlaksananya / Tersusunnya / Meningkatnya / Terwujudnya)",
+      "ukuranKeberhasilan": "Deskripsi ukuran keberhasilan / indikator kinerja individu dan target secara kualitatif terpadu",
+      "aspekList": [
+        {
+          "aspek": "Kuantitas",
+          "indikator": "Jumlah ... yang disusun/dilaksanakan",
+          "target": "Angka dan satuan (misal: 12 Laporan)",
+          "satuan": "Laporan/Dokumen/Kegiatan",
+          "buktiDukungDefault": "Nama dokumen bukti dukung",
+          "realisasiDefault": "Narasi capaian kinerja realisasi"
+        },
+        {
+          "aspek": "Kualitas",
+          "indikator": "Tingkat kesesuaian / persentase mutu ...",
+          "target": "85 - 100%",
+          "satuan": "%",
+          "buktiDukungDefault": "Hasil verifikasi/supervisi atasan",
+          "realisasiDefault": "Tercapai 95% sesuai standar yang ditetapkan"
+        },
+        {
+          "aspek": "Waktu",
+          "indikator": "Ketepatan waktu pelaksanaan ...",
+          "target": "12 Bulan",
+          "satuan": "Bulan",
+          "buktiDukungDefault": "Jurnal kerja / logbook aktivitas",
+          "realisasiDefault": "Tepat waktu terselesaikan dalam kurun 12 bulan"
+        }
+      ]
+    }
+  ]
+}
+Gunakan bahasa formal birokrasi Indonesia yang lugas, terukur, dan akuntabel.`;
+
+  const userPrompt = `Buatkan draf SKP lengkap untuk ASN dengan data berikut:
+- Jabatan: ${jabatan} (${jenjang})
+- Unit Kerja: ${unitKerja || "Instansi Pemerintah"}
+${tupoksiTambahan ? `- Uraian Tugas Tambahan / Catatan: ${tupoksiTambahan}` : ""}
+
+Hasilkan minimal 3 RHK UTAMA dan 1 RHK TAMBAHAN. Setiap RHK WAJIB memiliki 3 Aspek IKI: Kuantitas, Kualitas, dan Waktu lengkap dengan target dan rekomendasi dokumen bukti dukung. Balas HANYA dengan kode JSON valid.`;
+
+  // Tentukan Provider Efektif (openai atau gemini)
+  const envProvider = (process.env.AI_PROVIDER || "").toLowerCase().trim();
+  const hasOpenAiEnv = Boolean(process.env.OPENAI_API_KEY || process.env.AI_API_KEY);
+  let effectiveProvider = provider;
+  if (!effectiveProvider) {
+    if (envProvider) effectiveProvider = envProvider;
+    else if (baseUrl && (baseUrl.includes("9router") || baseUrl.includes("openai") || baseUrl.includes("openrouter") || baseUrl.includes("localhost"))) {
+      effectiveProvider = "openai";
+    } else if (hasOpenAiEnv) {
+      effectiveProvider = "openai";
+    } else {
+      effectiveProvider = "gemini";
+    }
+  }
+
+  const effectiveBaseUrl = baseUrl || process.env.OPENAI_BASE_URL || process.env.AI_BASE_URL || "https://api.9router.com/v1";
+  const effectiveModel = model || (effectiveProvider === "openai" ? (process.env.OPENAI_MODEL || process.env.AI_MODEL || "openai/gpt-4o-mini") : "gemini-3.5-flash-lite");
+
+  // 1. Cabang Provider: OpenAI-Compatible (9router, OpenRouter, Ollama, OpenAI)
+  if (effectiveProvider === "openai") {
+    const rawServerOpenAiKey = (process.env.OPENAI_API_KEY || process.env.AI_API_KEY || "").trim().replace(/^["']|["']$/g, "").trim();
+    const effectiveOpenAiKey = (apiKey && apiKey !== "server-managed" && !apiKey.startsWith("server-"))
+      ? apiKey.trim()
+      : rawServerOpenAiKey;
+
+    if (!effectiveOpenAiKey) {
+      throw new Error("API Key untuk OpenAI / 9router belum diatur!");
+    }
+
+    const parsed = await callOpenAiCompatibleApi({
+      apiKey: effectiveOpenAiKey,
+      baseUrl: effectiveBaseUrl,
+      model: effectiveModel,
+      systemPrompt,
+      userPrompt,
+      timeoutMs: 25000
+    });
+
+    const formattedRhkList = (parsed.rhkList || []).map((rhk, rIdx) => ({
+      ...rhk,
+      id: `ai-rhk-${Date.now()}-${rIdx}`,
+      aspekList: (rhk.aspekList || []).map((asp, aIdx) => ({
+        ...asp,
+        id: `ai-asp-${Date.now()}-${rIdx}-${aIdx}`
+      }))
+    }));
+
+    return {
+      intervensiPimpinan: parsed.intervensiPimpinan || "Terwujudnya akuntabilitas dan pelayanan publik yang optimal",
+      rhkList: formattedRhkList,
+      model: effectiveModel,
+      source: `openai (${effectiveModel})`
+    };
+  }
+
+  // 2. Cabang Provider: Google Gemini API
+  const rawServerGeminiKey = (process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || "").trim().replace(/^["']|["']$/g, "").trim();
+  const effectiveGeminiKey = (apiKey && apiKey !== "server-managed" && !apiKey.startsWith("server-") && effectiveProvider === "gemini")
+    ? apiKey.trim()
+    : rawServerGeminiKey;
+
+  if (!effectiveGeminiKey) {
+    throw new Error("API Key Gemini belum diatur di server maupun profil pengguna.");
+  }
+
+  const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
+  const candidateModels = [];
+  if (effectiveModel && effectiveModel.startsWith("gemini-")) {
+    candidateModels.push(effectiveModel);
+  }
+  candidateModels.push(
+    "gemini-3.5-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash"
+  );
+  const uniqueModels = [...new Set(candidateModels)];
+
+  let lastError = null;
+  for (const m of uniqueModels) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": effectiveGeminiKey
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: fullPrompt }] }],
+          generationConfig: {
+            temperature: 0.3,
+            responseMimeType: "application/json"
+          }
+        })
+      });
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (content) {
+          const parsed = parseAiJsonResponse(content);
+          const formattedRhkList = (parsed.rhkList || []).map((rhk, rIdx) => ({
+            ...rhk,
+            id: `gemini-rhk-${Date.now()}-${rIdx}`,
+            aspekList: (rhk.aspekList || []).map((asp, aIdx) => ({
+              ...asp,
+              id: `gemini-asp-${Date.now()}-${rIdx}-${aIdx}`
+            }))
+          }));
+
+          return {
+            intervensiPimpinan: parsed.intervensiPimpinan || "Terwujudnya akuntabilitas dan pelayanan publik yang optimal",
+            rhkList: formattedRhkList,
+            model: m,
+            source: `gemini-ai (${m})`
+          };
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        lastError = new Error(errorData.error?.message || `Gagal memanggil Gemini API (${m}, Status ${response.status})`);
+      }
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error("Tidak ada respon dari Gemini AI pada seluruh model yang tersedia.");
 }
 
 /**

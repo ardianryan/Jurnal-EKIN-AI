@@ -49,11 +49,107 @@ Gunakan bahasa formal birokrasi Indonesia yang lugas, terukur, dan akuntabel.
 `;
 
 /**
- * Generate SKP menggunakan Gemini API
+ * Generate SKP menggunakan AI (Mendukung backend proxy, Google Gemini, atau OpenAI/9router)
+ */
+export async function generateSkpWithAi({
+  jabatan,
+  unitKerja,
+  jenjang = "Ahli Pertama",
+  apiKey = "",
+  tupoksiTambahan = "",
+  provider = "gemini",
+  baseUrl = "",
+  model = ""
+}) {
+  // 1. Coba panggil server-side endpoint /api/ai/generate-skp terlebih dahulu
+  try {
+    const response = await fetch("/api/ai/generate-skp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jabatan,
+        unitKerja,
+        jenjang,
+        tupoksiTambahan,
+        apiKey,
+        provider,
+        baseUrl,
+        model
+      })
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.rhkList && data.rhkList.length > 0) {
+        return data;
+      }
+    }
+  } catch (e) {
+    // Backend tidak terjangkau, fallback ke client-side direct
+  }
+
+  // 2. Direct client-side call
+  if (provider === "openai" && apiKey) {
+    const promptText = `
+Buatkan draf SKP lengkap untuk ASN dengan data berikut:
+- Jabatan: ${jabatan} (${jenjang})
+- Unit Kerja: ${unitKerja}
+${tupoksiTambahan ? `- Uraian Tugas Tambahan / Catatan: ${tupoksiTambahan}` : ""}
+
+Hasilkan minimal 3 RHK UTAMA dan 1 RHK TAMBAHAN. Setiap RHK WAJIB memiliki 3 Aspek IKI: Kuantitas, Kualitas, dan Waktu lengkap dengan target dan rekomendasi dokumen bukti dukung.
+Balas HANYA dengan format JSON valid sesuai skema yang diminta tanpa markdown backtick.
+`.trim();
+
+    const cleanBaseUrl = (baseUrl || "https://api.9router.com/v1").replace(/\/chat\/completions$/i, "").replace(/\/+$/, "");
+    const targetModel = model || "openai/gpt-4o-mini";
+
+    const resp = await fetch(`${cleanBaseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: targetModel,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT_SKP },
+          { role: "user", content: promptText }
+        ],
+        temperature: 0.3
+      })
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      const content = data.choices?.[0]?.message?.content || "";
+      const cleaned = content.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
+      const parsed = JSON.parse(cleaned);
+      const formattedRhkList = (parsed.rhkList || []).map((rhk, rIdx) => ({
+        ...rhk,
+        id: `openai-rhk-${Date.now()}-${rIdx}`,
+        aspekList: (rhk.aspekList || []).map((asp, aIdx) => ({
+          ...asp,
+          id: `openai-asp-${Date.now()}-${rIdx}-${aIdx}`
+        }))
+      }));
+
+      return {
+        intervensiPimpinan: parsed.intervensiPimpinan || "Terwujudnya akuntabilitas dan pelayanan publik yang optimal",
+        rhkList: formattedRhkList,
+        model: targetModel
+      };
+    }
+  }
+
+  // Fallback direct Gemini
+  return await generateSkpWithGemini(jabatan, unitKerja, jenjang, apiKey, tupoksiTambahan);
+}
+
+/**
+ * Generate SKP menggunakan Gemini API (Langsung dari browser)
  */
 export async function generateSkpWithGemini(jabatan, unitKerja, jenjang, apiKey, tupoksiTambahan = "") {
   if (!apiKey) {
-    throw new Error("API Key Gemini belum diatur. Silakan atur di menu Pengaturan API.");
+    throw new Error("API Key AI belum diatur. Silakan atur di menu Pengaturan AI.");
   }
 
   const promptText = `
@@ -459,23 +555,25 @@ export function synthesizeJournalToRhk(journals, rhkList) {
 
 /**
  * Mengubah catatan aktivitas kasaran / santai menjadi bahasa formal kedinasan ASN
- * Mendukung Gemini API (Online) dan NLP Heuristik ASN (Offline)
+ * Mendukung Gemini API (Online), OpenAI-Compatible/9router, dan NLP Heuristik ASN (Offline)
  */
 export async function polishJournalWithAi({
   rawText,
   rhkList = [],
   apiKey = "",
   jabatan = "",
-  unitKerja = ""
+  unitKerja = "",
+  provider = "gemini",
+  baseUrl = "",
+  model = ""
 }) {
   if (!rawText || !rawText.trim()) {
     throw new Error("Tuliskan catatan aktivitas kasaran terlebih dahulu!");
   }
 
   // 1. Panggil Endpoint Server-Side AI Proxy (/api/ai/polish)
-  // Aman 100%: API Key & URL Google Gemini diproses secara tertutup di backend Node.js.
-  // Tidak ada pemanggilan langsung ke generativelanguage.googleapis.com dari browser,
-  // sehingga kuota habis (429) atau API Key TIDAK PERNAH bocor ke Browser Console atau Network Tab!
+  // Aman 100%: API Key & URL LLM diproses secara tertutup di backend Node.js.
+  // API Key TIDAK PERNAH bocor ke Browser Console atau Network Tab!
   try {
     const response = await fetch("/api/ai/polish", {
       method: "POST",
@@ -485,7 +583,10 @@ export async function polishJournalWithAi({
         rhkList,
         jabatan,
         unitKerja,
-        apiKey
+        apiKey,
+        provider,
+        baseUrl,
+        model
       })
     });
 
@@ -497,13 +598,14 @@ export async function polishJournalWithAi({
           const off = polishJournalOffline(rawText, rhkList);
           matchedRhkId = off.rhkId;
         }
+        const isOnline = Boolean(data.source && data.source !== "offline" && data.source !== "offline_429" && data.source !== "fallback-offline");
         return {
           aktivitas: cleanDuplicatePhrases(data.aktivitas),
           outputJumlah: data.outputJumlah || "1 Dokumen / Kegiatan",
           rhkId: matchedRhkId || (rhkList[0]?.id || ""),
           catatan: data.catatan || "Terselesaikan dalam kondisi optimal.",
-          source: data.source || "gemini-ai",
-          isOnline: Boolean(data.source && data.source.includes("gemini"))
+          source: data.source || (provider === "openai" ? "openai-ai" : "gemini-ai"),
+          isOnline
         };
       }
     }

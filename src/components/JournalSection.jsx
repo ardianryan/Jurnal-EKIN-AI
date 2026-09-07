@@ -395,7 +395,10 @@ export default function JournalSection({
         rhkList,
         apiKey: geminiApiKey,
         jabatan: pegawai?.jabatan,
-        unitKerja: pegawai?.unitKerja
+        unitKerja: pegawai?.unitKerja,
+        provider: apiKeyInfo?.provider,
+        baseUrl: apiKeyInfo?.baseUrl,
+        model: apiKeyInfo?.model
       });
 
       setFormData(prev => ({
@@ -413,19 +416,21 @@ export default function JournalSection({
         spread: 50,
         origin: { y: 0.6 }
       });
-      let notifMsg = `Berhasil! Catatan kasaran telah dipoles ke bahasa baku formal kedinasan ASN (${geminiApiKey ? "Gemini Online" : "Mode Cerdas Offline"}).`;
-      const isOnlineGemini = Boolean(
+      const is9router = apiKeyInfo?.provider === "openai" || (result.source && result.source.includes("openai"));
+      const isOnlineAI = Boolean(
         result.isOnline ||
-        (result.source && (result.source.includes("gemini") || result.source.startsWith("gemini") || result.source === "server-ai"))
+        (result.source && result.source !== "offline" && result.source !== "offline_429" && result.source !== "fallback-offline")
       );
 
+      let notifMsg = `Berhasil! Catatan kasaran telah dipoles ke bahasa baku formal kedinasan ASN.`;
       if (result.source === "offline_429") {
-        notifMsg = "Kuota Gemini AI di Google AI Studio habis (Error 429: Prepayment credits depleted). Sistem otomatis beralih memoles dengan Mode Cerdas Offline bawaan!";
-      } else if (isOnlineGemini) {
+        notifMsg = "Kuota AI habis (Error 429). Sistem otomatis beralih memoles dengan Mode Cerdas Offline bawaan!";
+      } else if (isOnlineAI) {
+        const providerTitle = is9router ? "OpenAI/9router" : "Gemini AI";
         const modelTag = (result.source && result.source.includes("("))
           ? ` (${result.source.split("(")[1].replace(")", "")})`
-          : " (Google Gemini Online)";
-        notifMsg = `Berhasil! Catatan kasaran telah dipoles menggunakan Gemini AI Online${modelTag}.`;
+          : ` (${providerTitle})`;
+        notifMsg = `Berhasil! Catatan kasaran telah dipoles menggunakan ${providerTitle} Online${modelTag}.`;
       } else {
         notifMsg = "Berhasil! Catatan kasaran telah dipoles menggunakan Mode Cerdas Offline bawaan.";
       }
@@ -703,9 +708,9 @@ export default function JournalSection({
                   }}></span>
                   <span>
                     {apiKeyInfo?.source === "env" 
-                      ? "AI Server (.env)" 
+                      ? (apiKeyInfo?.provider === "openai" ? "AI Server (9router)" : "AI Server (.env)")
                       : apiKeyInfo?.source === "personal" 
-                      ? "AI Key Pribadi" 
+                      ? (apiKeyInfo?.provider === "openai" ? "AI 9router Pribadi" : "AI Key Pribadi") 
                       : "AI Baku Offline"}
                   </span>
                 </button>

@@ -180,22 +180,24 @@ export function getTelegramBotConfig() {
   return cachedBotConfig;
 }
 
-// Cache status Gemini AI server-side
+// Cache status Gemini/OpenAI AI server-side
 let cachedAiConfig = {
   enabled: false,
   hasServerKey: false,
-  model: "gemini-3.5-flash-lite"
+  provider: "gemini",
+  baseUrl: "",
+  model: "gemini-2.5-flash"
 };
 
 /**
- * Mengambil konfigurasi status Gemini AI server-side saat ini
+ * Mengambil konfigurasi status AI server-side saat ini
  */
 export function getServerAiConfig() {
   return cachedAiConfig;
 }
 
 /**
- * Memperbarui status Gemini AI secara asinkron dari backend
+ * Memperbarui status AI secara asinkron dari backend
  */
 export async function fetchServerAiStatus() {
   try {
@@ -206,7 +208,9 @@ export async function fetchServerAiStatus() {
         cachedAiConfig = {
           enabled: Boolean(data.hasServerKey || data.enabled),
           hasServerKey: Boolean(data.hasServerKey || data.enabled),
-          model: data.model || "gemini-3.5-flash-lite"
+          provider: data.provider || "gemini",
+          baseUrl: data.baseUrl || "",
+          model: data.model || (data.provider === "openai" ? "openai/gpt-4o-mini" : "gemini-2.5-flash")
         };
         return cachedAiConfig;
       }
@@ -240,7 +244,7 @@ export async function fetchTelegramBotStatus() {
 }
 
 /**
- * Sinkronisasi data antara Browser LocalStorage dan Backend Store (Telegram Bot)
+ * Sinkronisasi data awal dengan Backend (jika server Node.js aktif)
  */
 export async function syncWithBackend() {
   try {
@@ -257,7 +261,9 @@ export async function syncWithBackend() {
         cachedAiConfig = {
           enabled: Boolean(data.aiConfig.hasServerKey || data.aiConfig.enabled),
           hasServerKey: Boolean(data.aiConfig.hasServerKey || data.aiConfig.enabled),
-          model: data.aiConfig.model || "gemini-3.5-flash-lite"
+          provider: data.aiConfig.provider || "gemini",
+          baseUrl: data.aiConfig.baseUrl || "",
+          model: data.aiConfig.model || (data.aiConfig.provider === "openai" ? "openai/gpt-4o-mini" : "gemini-2.5-flash")
         };
       }
       if (data && Array.isArray(data.accounts)) {
@@ -384,7 +390,6 @@ export async function authenticate(username, password) {
   // Sanitasi sebelum disimpan ke currentUser
   const sanitized = { ...user };
   delete sanitized.password;
-  delete sanitized.personalApiKey;
 
   setCurrentUser(sanitized);
   return sanitized;
@@ -917,18 +922,26 @@ export function resolveEffectiveApiKey(currentUser, envApiKey, serverAiConfig = 
       key: "",
       source: "offline",
       label: "Mode Offline",
-      isOnline: false
+      isOnline: false,
+      provider: "offline",
+      baseUrl: "",
+      model: ""
     };
   }
 
   // 2. Jika user secara eksplisit memilih Key Pribadi atau usePersonalKey = true
   if (currentUser?.aiModeChoice === "personal" || currentUser?.usePersonalKey) {
     if (currentUser?.personalApiKey) {
+      const p = currentUser.personalAiProvider || "gemini";
+      const pModel = currentUser.personalAiModel || (p === "openai" ? "openai/gpt-4o-mini" : "gemini-2.5-flash");
       return {
         key: currentUser.personalApiKey,
         source: "personal",
         label: isSuperadmin ? "Key Pribadi Admin" : "Key Pribadi Akun",
-        isOnline: true
+        isOnline: true,
+        provider: p,
+        baseUrl: currentUser.personalAiBaseUrl || (p === "openai" ? "https://api.9router.com/v1" : ""),
+        model: pModel
       };
     }
   }
@@ -936,22 +949,31 @@ export function resolveEffectiveApiKey(currentUser, envApiKey, serverAiConfig = 
   // 3. Jika user memilih .env (atau default) dan diizinkan memakai .env sistem
   if (currentUser?.aiModeChoice === "env" || !currentUser?.aiModeChoice) {
     if (userAllowedEnv && (envApiKey || serverHasKey)) {
+      const p = aiConfig?.provider || "gemini";
+      const pModel = aiConfig?.model || (p === "openai" ? "openai/gpt-4o-mini" : "gemini-2.5-flash");
       return {
         key: envApiKey || "server-managed",
         source: "env",
-        label: "Sistem (.env)",
-        isOnline: true
+        label: "Sistem (" + (aiConfig?.provider === "openai" ? "OpenAI/9router" : ".env") + ")",
+        isOnline: true,
+        provider: p,
+        baseUrl: aiConfig?.baseUrl || "",
+        model: pModel
       };
     }
   }
 
   // 4. Jika dilarang memakai .env atau .env kosong, gunakan key pribadi akun jika ada
   if (currentUser?.personalApiKey) {
+    const p = currentUser.personalAiProvider || "gemini";
     return {
       key: currentUser.personalApiKey,
       source: "personal",
       label: "Key Pribadi Akun",
-      isOnline: true
+      isOnline: true,
+      provider: p,
+      baseUrl: currentUser.personalAiBaseUrl || (p === "openai" ? "https://api.9router.com/v1" : ""),
+      model: currentUser.personalAiModel || (p === "openai" ? "openai/gpt-4o-mini" : "gemini-2.5-flash")
     };
   }
 
@@ -960,7 +982,10 @@ export function resolveEffectiveApiKey(currentUser, envApiKey, serverAiConfig = 
     key: "",
     source: "offline",
     label: "Mode Offline",
-    isOnline: false
+    isOnline: false,
+    provider: "offline",
+    baseUrl: "",
+    model: ""
   };
 }
 

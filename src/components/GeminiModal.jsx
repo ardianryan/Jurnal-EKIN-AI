@@ -12,7 +12,9 @@ import {
   Server, 
   User,
   AlertCircle,
-  Zap
+  Zap,
+  Globe,
+  Cpu
 } from "lucide-react";
 
 export default function GeminiModal({
@@ -41,11 +43,18 @@ export default function GeminiModal({
   });
 
   const [personalKeyInput, setPersonalKeyInput] = useState(currentUser?.personalApiKey || "");
+  const [personalProvider, setPersonalProvider] = useState(currentUser?.personalAiProvider || "gemini");
+  const [personalBaseUrl, setPersonalBaseUrl] = useState(currentUser?.personalAiBaseUrl || "https://api.9router.com/v1");
+  const [personalModel, setPersonalModel] = useState(currentUser?.personalAiModel || "openai/gpt-4o-mini");
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {
     if (currentUser) {
       setPersonalKeyInput(currentUser.personalApiKey || "");
+      setPersonalProvider(currentUser.personalAiProvider || "gemini");
+      setPersonalBaseUrl(currentUser.personalAiBaseUrl || "https://api.9router.com/v1");
+      setPersonalModel(currentUser.personalAiModel || "openai/gpt-4o-mini");
+
       if (currentUser.aiModeChoice === "offline") {
         setKeyChoice("offline");
       } else if (currentUser.aiModeChoice === "personal") {
@@ -72,7 +81,16 @@ export default function GeminiModal({
 
   const handleSave = () => {
     const usePersonal = keyChoice === "personal";
-    onSaveUserKey(personalKeyInput.trim(), usePersonal, keyChoice);
+    onSaveUserKey(
+      personalKeyInput.trim(), 
+      usePersonal, 
+      keyChoice,
+      {
+        provider: personalProvider,
+        baseUrl: personalBaseUrl.trim(),
+        model: personalModel.trim()
+      }
+    );
     setSaveSuccess(true);
     setTimeout(() => {
       setSaveSuccess(false);
@@ -82,16 +100,23 @@ export default function GeminiModal({
 
   const handleClearPersonal = () => {
     setPersonalKeyInput("");
+    setPersonalProvider("gemini");
+    setPersonalBaseUrl("https://api.9router.com/v1");
+    setPersonalModel("openai/gpt-4o-mini");
     const nextChoice = (hasEnvKey && isAllowedEnv) ? "env" : "offline";
     setKeyChoice(nextChoice);
-    onSaveUserKey("", false, nextChoice);
+    onSaveUserKey("", false, nextChoice, {
+      provider: "gemini",
+      baseUrl: "",
+      model: ""
+    });
   };
 
   return (
     <Sheet
       isOpen={isOpen}
       onClose={onClose}
-      title="Pengaturan API Key Gemini AI"
+      title="Pengaturan AI Assistant & API Key"
       description={`Akun: ${currentUser?.nama || currentUser?.username || "Pegawai"} (${currentUser?.role || "pegawai"})`}
       size="lg"
     >
@@ -324,7 +349,9 @@ export default function GeminiModal({
                   )}
                 </div>
                 <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: "2px" }}>
-                  Praktis menggunakan Gemini 2.5 Flash Online dari konfigurasi server tanpa perlu mendaftar key sendiri.
+                  {serverAiConfig?.provider === "openai"
+                    ? `Menggunakan server-side OpenAI/9router (${serverAiConfig.model || "openai/gpt-4o-mini"}) tanpa perlu mendaftar key sendiri.`
+                    : "Praktis menggunakan Gemini 2.5 Flash Online dari konfigurasi server tanpa perlu mendaftar key sendiri."}
                 </div>
               </div>
             </label>
@@ -354,10 +381,10 @@ export default function GeminiModal({
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: "700", fontSize: "0.88rem", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
                   <User size={14} style={{ color: "#7c3aed" }} />
-                  <span>Gunakan API Key Gemini Pribadi Akun Sendiri</span>
+                  <span>Gunakan Konfigurasi AI Pribadi Akun Sendiri</span>
                   {personalKeyInput ? (
                     <span style={{ fontSize: "0.72rem", background: "#f3e8ff", color: "#6b21a8", padding: "1px 6px", borderRadius: "10px", fontWeight: "700" }}>
-                      Key Tersimpan
+                      {personalProvider === "openai" ? "9router / OpenAI" : "Gemini"} Tersimpan
                     </span>
                   ) : (
                     <span style={{ fontSize: "0.72rem", background: "#f3f4f6", color: "#6b7280", padding: "1px 6px", borderRadius: "10px", fontWeight: "700" }}>
@@ -366,7 +393,7 @@ export default function GeminiModal({
                   )}
                 </div>
                 <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: "2px" }}>
-                  Gunakan kuota independen milik Anda sendiri dari Google AI Studio (disarankan jika kuota bersama limit).
+                  Gunakan kuota milik Anda sendiri: Google Gemini atau OpenAI-Compatible (9router, OpenRouter, LiteLLM, Ollama) dengan custom model &amp; endpoint.
                 </div>
               </div>
             </label>
@@ -413,35 +440,206 @@ export default function GeminiModal({
             <div style={{
               background: "var(--bg-tertiary)",
               border: "1px solid var(--border-subtle)",
-              borderRadius: "8px",
-              padding: "1rem"
+              borderRadius: "10px",
+              padding: "1.1rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1rem"
             }}>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label" style={{ fontWeight: "700", fontSize: "0.82rem" }}>
-                  Masukkan Gemini API Key Pribadi Anda:
+              {/* Provider Selection Tabs */}
+              <div>
+                <label className="form-label" style={{ fontWeight: "700", fontSize: "0.82rem", marginBottom: "0.5rem", display: "block" }}>
+                  Pilih Penyedia AI (AI Provider):
                 </label>
-                <input 
-                  type="password" 
-                  className="input-field font-mono"
-                  value={personalKeyInput}
-                  onChange={(e) => setPersonalKeyInput(e.target.value)}
-                  placeholder="AIzaSy... (atau kosongkan untuk Mode AI Offline)"
-                  style={{ fontSize: "0.85rem" }}
-                />
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "4px" }}>
-                  <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
-                    Kosongkan jika ingin memakai AI Mode Offline gratis tanpa key.
-                  </span>
-                  <a 
-                    href="https://aistudio.google.com/app/apikey" 
-                    target="_blank" 
-                    rel="noreferrer"
-                    style={{ fontSize: "0.75rem", color: "var(--accent-primary)", fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "3px" }}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                  <button
+                    type="button"
+                    onClick={() => setPersonalProvider("gemini")}
+                    style={{
+                      padding: "0.6rem 0.75rem",
+                      borderRadius: "8px",
+                      border: `1.5px solid ${personalProvider === "gemini" ? "var(--accent-primary)" : "var(--border-subtle)"}`,
+                      background: personalProvider === "gemini" ? "rgba(52, 99, 75, 0.12)" : "var(--bg-secondary)",
+                      color: personalProvider === "gemini" ? "var(--accent-primary)" : "var(--text-secondary)",
+                      fontWeight: "700",
+                      fontSize: "0.82rem",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.4rem",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease"
+                    }}
                   >
-                    Dapatkan Key Gratis <ExternalLink size={11} />
-                  </a>
+                    <Sparkles size={15} />
+                    <span>Google Gemini</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPersonalProvider("openai")}
+                    style={{
+                      padding: "0.6rem 0.75rem",
+                      borderRadius: "8px",
+                      border: `1.5px solid ${personalProvider === "openai" ? "#7c3aed" : "var(--border-subtle)"}`,
+                      background: personalProvider === "openai" ? "rgba(124, 58, 237, 0.12)" : "var(--bg-secondary)",
+                      color: personalProvider === "openai" ? "#7c3aed" : "var(--text-secondary)",
+                      fontWeight: "700",
+                      fontSize: "0.82rem",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.4rem",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease"
+                    }}
+                  >
+                    <Globe size={15} />
+                    <span>OpenAI / 9router</span>
+                  </button>
                 </div>
               </div>
+
+              {/* Form Jika Google Gemini */}
+              {personalProvider === "gemini" && (
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontWeight: "700", fontSize: "0.82rem" }}>
+                    Gemini API Key Pribadi Anda:
+                  </label>
+                  <input 
+                    type="password" 
+                    className="input-field font-mono"
+                    value={personalKeyInput}
+                    onChange={(e) => setPersonalKeyInput(e.target.value)}
+                    placeholder="AIzaSy... (atau kosongkan untuk Mode AI Offline)"
+                    style={{ fontSize: "0.85rem" }}
+                  />
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "4px" }}>
+                    <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+                      Kosongkan jika ingin memakai AI Mode Offline gratis tanpa key.
+                    </span>
+                    <a 
+                      href="https://aistudio.google.com/app/apikey" 
+                      target="_blank" 
+                      rel="noreferrer"
+                      style={{ fontSize: "0.75rem", color: "var(--accent-primary)", fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "3px" }}
+                    >
+                      Dapatkan Key Gratis <ExternalLink size={11} />
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* Form Jika OpenAI Compatible / 9router */}
+              {personalProvider === "openai" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+                  {/* Base URL Endpoint */}
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                      <label className="form-label" style={{ fontWeight: "700", fontSize: "0.82rem", margin: 0 }}>
+                        Base URL / Custom Endpoint:
+                      </label>
+                      <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>Format /v1</span>
+                    </div>
+                    <input 
+                      type="text" 
+                      className="input-field font-mono"
+                      value={personalBaseUrl}
+                      onChange={(e) => setPersonalBaseUrl(e.target.value)}
+                      placeholder="https://api.9router.com/v1"
+                      style={{ fontSize: "0.85rem" }}
+                    />
+                    {/* Preset Endpoint Chips */}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "6px" }}>
+                      {[
+                        { name: "9router (Default)", url: "https://api.9router.com/v1" },
+                        { name: "OpenRouter", url: "https://openrouter.ai/api/v1" },
+                        { name: "OpenAI Resmi", url: "https://api.openai.com/v1" },
+                        { name: "Localhost (Ollama)", url: "http://localhost:11434/v1" }
+                      ].map(preset => (
+                        <button
+                          key={preset.name}
+                          type="button"
+                          onClick={() => setPersonalBaseUrl(preset.url)}
+                          style={{
+                            fontSize: "0.7rem",
+                            padding: "2px 8px",
+                            borderRadius: "12px",
+                            border: "1px solid var(--border-subtle)",
+                            background: personalBaseUrl === preset.url ? "#7c3aed" : "var(--bg-secondary)",
+                            color: personalBaseUrl === preset.url ? "#ffffff" : "var(--text-secondary)",
+                            cursor: "pointer",
+                            fontWeight: "600"
+                          }}
+                        >
+                          {preset.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* API Key */}
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontWeight: "700", fontSize: "0.82rem" }}>
+                      API Key (9router / OpenAI / Provider):
+                    </label>
+                    <input 
+                      type="password" 
+                      className="input-field font-mono"
+                      value={personalKeyInput}
+                      onChange={(e) => setPersonalKeyInput(e.target.value)}
+                      placeholder="Masukkan API Key (9router-..., sk-..., dll)"
+                      style={{ fontSize: "0.85rem" }}
+                    />
+                  </div>
+
+                  {/* Custom Model */}
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                      <label className="form-label" style={{ fontWeight: "700", fontSize: "0.82rem", margin: 0 }}>
+                        Nama Model (Custom Model):
+                      </label>
+                      <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>Sesuai katalog provider</span>
+                    </div>
+                    <input 
+                      type="text" 
+                      className="input-field font-mono"
+                      value={personalModel}
+                      onChange={(e) => setPersonalModel(e.target.value)}
+                      placeholder="openai/gpt-4o-mini"
+                      style={{ fontSize: "0.85rem" }}
+                    />
+                    {/* Preset Model Chips */}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "6px" }}>
+                      {[
+                        "openai/gpt-4o-mini",
+                        "google/gemini-2.5-flash",
+                        "deepseek/deepseek-chat",
+                        "gpt-4o-mini",
+                        "gpt-4o"
+                      ].map(m => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setPersonalModel(m)}
+                          style={{
+                            fontSize: "0.7rem",
+                            padding: "2px 8px",
+                            borderRadius: "12px",
+                            border: "1px solid var(--border-subtle)",
+                            background: personalModel === m ? "#7c3aed" : "var(--bg-secondary)",
+                            color: personalModel === m ? "#ffffff" : "var(--text-secondary)",
+                            cursor: "pointer",
+                            fontWeight: "600"
+                          }}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

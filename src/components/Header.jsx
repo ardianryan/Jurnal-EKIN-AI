@@ -46,18 +46,20 @@ export default function Header({
   const userInitial = (currentUser?.nama || currentUser?.username || "P").trim().charAt(0).toUpperCase();
 
   const getAiStatusDetails = () => {
+    const is9router = apiKeyInfo?.provider === "openai";
+    const providerTitle = is9router ? "OpenAI Compatible / 9router" : "Google Gemini";
     if (apiKeyInfo?.source === "env") {
       return {
-        label: "AI Terhubung (.env)",
+        label: is9router ? "AI Server (9router)" : "AI Terhubung (.env)",
         dotClass: "online",
-        title: "AI Google Gemini Aktif dari Server (.env)"
+        title: `AI ${providerTitle} Aktif dari Server`
       };
     }
     if (apiKeyInfo?.source === "personal") {
       return {
-        label: "AI Key Pribadi",
+        label: is9router ? "AI 9router Pribadi" : "AI Key Pribadi",
         dotClass: "online",
-        title: "AI Google Gemini Aktif menggunakan Key Akun Anda"
+        title: `AI ${providerTitle} Aktif menggunakan Konfigurasi Pribadi Akun`
       };
     }
     return {
