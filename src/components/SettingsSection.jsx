@@ -25,7 +25,8 @@ import {
   Cloud,
   Calendar,
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  Link2
 } from "lucide-react";
 import { 
   getAccounts, 
@@ -1123,6 +1124,90 @@ export default function SettingsSection({
                       <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "2px" }}>
                         Domain authority penyedia OIDC Zitadel instansi.
                       </span>
+                    </div>
+
+                    {/* Kotak Endpoint Callback & Logout Otomatis (Tinggal Salin) */}
+                    <div style={{
+                      background: "var(--bg-tertiary)",
+                      borderRadius: "8px",
+                      border: "1px solid var(--border-subtle)",
+                      padding: "1rem",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.85rem"
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", fontWeight: "700", fontSize: "0.88rem", color: "var(--text-primary)" }}>
+                          <Link2 size={15} style={{ color: "var(--accent-primary)" }} />
+                          <span>Endpoint SSO Zitadel Resmi (Otomatis Sesuai Domain Ini)</span>
+                        </div>
+                        <span className="badge badge-secondary" style={{ fontSize: "0.68rem" }}>
+                          Auto Generated
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: "0.76rem", color: "var(--text-secondary)", lineHeight: 1.4 }}>
+                        Daftarkan URL di bawah ini pada halaman konfigurasi aplikasi di <strong>Zitadel Console</strong>:
+                      </p>
+
+                      {/* 1. Redirect URI / Callback */}
+                      <div>
+                        <div style={{ fontSize: "0.72rem", fontWeight: "700", color: "var(--text-muted)", marginBottom: "3px" }}>
+                          1. Redirect URI / Callback URL (Daftarkan di <em>Redirect URIs</em>):
+                        </div>
+                        <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                          <input
+                            type="text"
+                            readOnly
+                            value={typeof window !== "undefined" ? `${window.location.origin}/api/auth/sso/zitadel/callback` : "/api/auth/sso/zitadel/callback"}
+                            className="input-field"
+                            style={{ margin: 0, fontFamily: "monospace", fontSize: "0.8rem", background: "var(--bg-surface)", fontWeight: "600", color: "#2563eb" }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => {
+                              const val = `${window.location.origin}/api/auth/sso/zitadel/callback`;
+                              navigator.clipboard.writeText(val);
+                              setNotification({ type: "success", text: "Redirect URI Callback berhasil disalin ke clipboard!" });
+                            }}
+                            title="Salin Redirect URI"
+                            style={{ padding: "0.45rem 0.75rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+                          >
+                            <Copy size={13} />
+                            <span>Salin</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 2. Post Logout Redirect URI */}
+                      <div>
+                        <div style={{ fontSize: "0.72rem", fontWeight: "700", color: "var(--text-muted)", marginBottom: "3px" }}>
+                          2. Post Logout Redirect URI (Daftarkan di <em>Post Logout Redirect URIs</em>):
+                        </div>
+                        <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                          <input
+                            type="text"
+                            readOnly
+                            value={typeof window !== "undefined" ? `${window.location.origin}/#/login` : "/#/login"}
+                            className="input-field"
+                            style={{ margin: 0, fontFamily: "monospace", fontSize: "0.8rem", background: "var(--bg-surface)", fontWeight: "600", color: "var(--text-primary)" }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => {
+                              const val = `${window.location.origin}/#/login`;
+                              navigator.clipboard.writeText(val);
+                              setNotification({ type: "success", text: "Post Logout Redirect URI berhasil disalin ke clipboard!" });
+                            }}
+                            title="Salin Logout URL"
+                            style={{ padding: "0.45rem 0.75rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+                          >
+                            <Copy size={13} />
+                            <span>Salin</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
                     <div style={{
