@@ -186,6 +186,10 @@ export async function initPostgresDatabase() {
       const migrations = [
         "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS gdrive_link TEXT DEFAULT ''",
         "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS default_jam VARCHAR(50) DEFAULT '08:00 - 16:00'",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS nik VARCHAR(50) DEFAULT ''",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS sso_uuid VARCHAR(100) DEFAULT ''",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS sso_role VARCHAR(50) DEFAULT ''",
+        "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS sso_source VARCHAR(50) DEFAULT ''",
         "ALTER TABLE accounts ADD COLUMN IF NOT EXISTS updated_at VARCHAR(50)",
         "ALTER TABLE journals ADD COLUMN IF NOT EXISTS attachments TEXT",
         "ALTER TABLE journals ADD COLUMN IF NOT EXISTS foto_url TEXT",
@@ -351,6 +355,10 @@ export async function loadStoreFromPostgres() {
         role: r.role,
         nama: r.nama,
         nip: r.nip,
+        nik: r.nik || "",
+        ssoUuid: r.sso_uuid || "",
+        ssoRole: r.sso_role || "",
+        ssoSource: r.sso_source || "",
         pangkat: r.pangkat,
         jabatan: r.jabatan,
         unitKerja: r.unit_kerja,
@@ -478,14 +486,18 @@ export async function syncStoreToPostgres(store) {
       if (Array.isArray(store.accounts)) {
         for (const a of store.accounts) {
           await client.query(`
-            INSERT INTO accounts (id, username, password, role, nama, nip, pangkat, jabatan, unit_kerja, gdrive_link, default_jam, allow_env_key, personal_api_key, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            INSERT INTO accounts (id, username, password, role, nama, nip, nik, sso_uuid, sso_role, sso_source, pangkat, jabatan, unit_kerja, gdrive_link, default_jam, allow_env_key, personal_api_key, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
             ON CONFLICT (id) DO UPDATE SET
               username = EXCLUDED.username,
               password = EXCLUDED.password,
               role = EXCLUDED.role,
               nama = EXCLUDED.nama,
               nip = EXCLUDED.nip,
+              nik = EXCLUDED.nik,
+              sso_uuid = EXCLUDED.sso_uuid,
+              sso_role = EXCLUDED.sso_role,
+              sso_source = EXCLUDED.sso_source,
               pangkat = EXCLUDED.pangkat,
               jabatan = EXCLUDED.jabatan,
               unit_kerja = EXCLUDED.unit_kerja,
@@ -497,10 +509,14 @@ export async function syncStoreToPostgres(store) {
           `, [
             a.id,
             a.username,
-            a.password,
+            a.password || "",
             a.role || "pegawai",
             a.nama || a.username,
             a.nip || "",
+            a.nik || "",
+            a.ssoUuid || "",
+            a.ssoRole || "",
+            a.ssoSource || "",
             a.pangkat || "",
             a.jabatan || "",
             a.unitKerja || "",
