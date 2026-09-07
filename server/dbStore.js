@@ -620,9 +620,19 @@ export function normalizeJournalAttachments(jrn) {
 export function getJournals(userId = null) {
   const store = getStore();
   const all = store.journals || [];
-  const filtered = userId 
-    ? all.filter(j => j.userId === userId || (!j.userId && userId === "usr-farras"))
-    : all;
+  if (!userId) return all;
+
+  // Cari user info untuk mencocokkan id dan username secara akurat
+  const user = (store.accounts || []).find(a => a.id === userId || a.username === userId);
+  const targetId = user?.id || userId;
+  const targetUsername = (user?.username || (userId.startsWith("usr-") ? userId.slice(4) : userId)).toLowerCase();
+
+  const filtered = all.filter(j => {
+    if (j.userId && (j.userId === targetId || j.userId === userId)) return true;
+    if (j.username && j.username.toLowerCase() === targetUsername) return true;
+    if (!j.userId && !j.username && (targetId === "usr-farras" || targetUsername === "farras")) return true;
+    return false;
+  });
 
   return [...filtered].sort((a, b) => {
     const diffDate = String(b.tanggal || "").localeCompare(String(a.tanggal || ""));

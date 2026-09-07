@@ -21,21 +21,29 @@ export default function HomeSection({
   onOpenAccountManagerModal,
   botConfig = { enabled: false, username: "" }
 }) {
-  const isSuperadmin = currentUser?.role === "superadmin";
-  const userJournals = isSuperadmin 
-    ? journals 
-    : journals.filter(j => j.userId === currentUser?.id || (!j.userId && (currentUser?.username === "farras" || currentUser?.id === "usr-farras")));
-  
-  const displayJournals = userJournals.length > 0 ? userJournals : journals;
-  const totalJournals = displayJournals.length;
-  const totalPhotos = displayJournals.filter(j => j.fotoUrl || j.fileName || (Array.isArray(j.attachments) && j.attachments.some(a => a.type === "image"))).length;
-  const totalLinks = displayJournals.filter(j => j.linkUrl || j.driveLink).length;
+  // Filter ketat HANYA untuk pengguna yang sedang aktif login
+  const currentUserId = currentUser?.id || (currentUser?.username ? `usr-${currentUser.username}` : "");
+  const currentUsername = (currentUser?.username || "").toLowerCase();
 
-  const sortedJournals = [...displayJournals].sort((a, b) => {
+  const userJournals = journals.filter(j => {
+    if (!currentUser) return false;
+    if (j.userId && (j.userId === currentUserId || j.userId === currentUser.id)) return true;
+    if (j.username && j.username.toLowerCase() === currentUsername) return true;
+    // Jurnal legacy tanpa userId/username hanya untuk akun default farras
+    if (!j.userId && !j.username && (currentUsername === "farras" || currentUserId === "usr-farras")) return true;
+    return false;
+  });
+
+  const totalJournals = userJournals.length;
+  const totalPhotos = userJournals.filter(j => j.fotoUrl || j.fileName || (Array.isArray(j.attachments) && j.attachments.some(a => a.type === "image"))).length;
+  const totalLinks = userJournals.filter(j => j.linkUrl || j.driveLink).length;
+
+  const sortedJournals = [...userJournals].sort((a, b) => {
     const diffDate = String(b.tanggal || "").localeCompare(String(a.tanggal || ""));
     if (diffDate !== 0) return diffDate;
     return String(b.createdAt || b.id || "").localeCompare(String(a.createdAt || a.id || ""));
   });
+
   // Ambil 5 jurnal terbaru, lalu susun dari terlama ke terbaru
   const recentJournals = sortedJournals.slice(0, 5).sort((a, b) => {
     const diffDate = String(a.tanggal || "").localeCompare(String(b.tanggal || ""));
@@ -670,36 +678,36 @@ export default function HomeSection({
       </div>
 
       {/* Catatan Terakhir yang Baru Diisi */}
-      {recentJournals.length > 0 && (
-        <div style={{
-          background: "var(--bg-secondary, #ffffff)",
-          border: "1px solid var(--border-subtle, #e2e8f0)",
-          borderRadius: "var(--radius-md, 12px)",
-          padding: "1.5rem 1.75rem"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
-            <h3 style={{ fontSize: "1.05rem", fontWeight: "700", margin: 0, color: "var(--text-primary)" }}>
-              🕒 Aktivitas Jurnal Terbaru
-            </h3>
-            <button
-              onClick={() => onNavigate("jurnal")}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#2563eb",
-                fontWeight: "600",
-                fontSize: "0.82rem",
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.25rem"
-              }}
-            >
-              <span>Lihat Semua ({totalJournals})</span>
-              <ArrowRight size={13} />
-            </button>
-          </div>
+      <div style={{
+        background: "var(--bg-secondary, #ffffff)",
+        border: "1px solid var(--border-subtle, #e2e8f0)",
+        borderRadius: "var(--radius-md, 12px)",
+        padding: "1.5rem 1.75rem"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
+          <h3 style={{ fontSize: "1.05rem", fontWeight: "700", margin: 0, color: "var(--text-primary)" }}>
+            🕒 Aktivitas Jurnal Terbaru
+          </h3>
+          <button
+            onClick={() => onNavigate("jurnal")}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#2563eb",
+              fontWeight: "600",
+              fontSize: "0.82rem",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.25rem"
+            }}
+          >
+            <span>Lihat Semua ({totalJournals})</span>
+            <ArrowRight size={13} />
+          </button>
+        </div>
 
+        {recentJournals.length > 0 ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             {recentJournals.map((j, i) => (
               <div 
@@ -746,8 +754,25 @@ export default function HomeSection({
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div style={{
+            textAlign: "center",
+            padding: "2rem 1rem",
+            color: "var(--text-muted)",
+            fontSize: "0.88rem",
+            background: "var(--bg-tertiary, #f8fafc)",
+            borderRadius: "8px",
+            border: "1px dashed var(--border-subtle, #cbd5e1)"
+          }}>
+            <p style={{ margin: "0 0 0.5rem 0", fontWeight: "600" }}>
+              Belum ada jurnal tercatat untuk akun <b>{currentUser?.name || currentUser?.username || "Anda"}</b>.
+            </p>
+            <p style={{ margin: 0, fontSize: "0.8rem" }}>
+              Silakan tambahkan jurnal harian Anda melalui menu Jurnal atau bot Telegram.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

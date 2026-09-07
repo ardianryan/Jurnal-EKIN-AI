@@ -39,6 +39,21 @@ export default function JournalSection({
   const accounts = getAccounts();
   const casualData = getCasualExamplesForUser(activeJabatanForExamples, journals, accounts);
 
+  // Filter jurnal khusus pengguna yang sedang login
+  const currentUserId = currentUser?.id || (currentUser?.username ? `usr-${currentUser.username}` : "");
+  const currentUsername = (currentUser?.username || "").toLowerCase();
+  const isSuperadmin = currentUser?.role === "superadmin";
+
+  const displayedJournals = isSuperadmin 
+    ? journals 
+    : journals.filter(j => {
+        if (!currentUser) return false;
+        if (j.userId && (j.userId === currentUserId || j.userId === currentUser.id)) return true;
+        if (j.username && j.username.toLowerCase() === currentUsername) return true;
+        if (!j.userId && !j.username && (currentUsername === "farras" || currentUserId === "usr-farras")) return true;
+        return false;
+      });
+
   const [formData, setFormData] = useState({
     tanggal: new Date().toISOString().slice(0, 10),
     jam: "08:00 - 12:00",
@@ -451,7 +466,7 @@ export default function JournalSection({
             <h2 style={{ fontSize: "1.2rem", fontWeight: "800", display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <span>Catat Aktivitas &amp; Poles Laporan Kasaran</span>
               <span style={{ fontSize: "0.82rem", color: "var(--text-muted)", fontWeight: "600" }}>
-                ({journals.length} Aktivitas Terekam)
+                ({displayedJournals.length} Aktivitas Terekam)
               </span>
             </h2>
             <p style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
@@ -1129,7 +1144,7 @@ export default function JournalSection({
       )}
 
       {/* Daftar Jurnal & Galeri Berkas / Foto */}
-      {journals.length === 0 ? (
+      {displayedJournals.length === 0 ? (
         <div style={{ 
           textAlign: "center", 
           padding: "2.5rem 1rem", 
@@ -1176,7 +1191,7 @@ export default function JournalSection({
                 borderRadius: "12px",
                 border: "1px solid var(--border-subtle)"
               }}>
-                {journals.length} Kegiatan
+                {displayedJournals.length} Kegiatan
               </span>
             </div>
 
@@ -1200,7 +1215,7 @@ export default function JournalSection({
               <span>+ Tambah Jurnal Baru</span>
             </button>
           </div>
-          {journals.map((j, index) => {
+          {displayedJournals.map((j, index) => {
             const attList = Array.isArray(j.attachments) && j.attachments.length > 0
               ? j.attachments
               : (j.fotoUrl || j.fileName ? [{ type: j.evidenceType || (j.fotoUrl ? "image" : "document"), fotoUrl: j.fotoUrl, fileName: j.fileName, fileSize: j.fileSize, docCategory: j.docCategory }] : []);

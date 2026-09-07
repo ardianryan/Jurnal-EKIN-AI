@@ -382,6 +382,21 @@ export default function App() {
     return <LoginPage onLoginSuccess={handleUserChanged} />;
   }
 
+  // Hitung jumlah jurnal khusus user aktif
+  const currentUserId = currentUser?.id || (currentUser?.username ? `usr-${currentUser.username}` : "");
+  const currentUsername = (currentUser?.username || "").toLowerCase();
+  const isSuperadmin = currentUser?.role === "superadmin";
+
+  const userJournalsCount = isSuperadmin
+    ? journals.length
+    : journals.filter(j => {
+        if (!currentUser) return false;
+        if (j.userId && (j.userId === currentUserId || j.userId === currentUser.id)) return true;
+        if (j.username && j.username.toLowerCase() === currentUsername) return true;
+        if (!j.userId && !j.username && (currentUsername === "farras" || currentUserId === "usr-farras")) return true;
+        return false;
+      }).length;
+
   return (
     <div className="app-container">
       {/* Header Bar */}
@@ -421,7 +436,7 @@ export default function App() {
           title="Tulis Catatan Harian Kasaran & Poles AI"
         >
           <Camera size={16} />
-          <span>Jurnal &amp; Bukti Foto ({journals.length})</span>
+          <span>Jurnal &amp; Bukti Foto ({userJournalsCount})</span>
         </button>
 
         <button 
