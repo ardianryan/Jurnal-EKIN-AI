@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { 
   PlusCircle, 
   FileText, 
@@ -13,7 +13,9 @@ import {
   FolderCheck,
   Award,
   Users,
-  Sliders
+  Sliders,
+  ExternalLink,
+  X
 } from "lucide-react";
 
 /**
@@ -33,10 +35,36 @@ export default function HomeSection({
   botConfig = { enabled: false, username: "" },
   schoolName = "SMA Negeri 1 Gedeg"
 }) {
-  const totalJournals = journals.length;
-  const totalPhotos = journals.filter(j => j.fotoUrl || (Array.isArray(j.attachments) && j.attachments.some(a => a.type === "image"))).length;
-  const totalLinks = journals.filter(j => j.linkUrl || j.driveLink).length;
-  const recentJournals = [...journals].slice(-4).reverse();
+  const [activePhotoModal, setActivePhotoModal] = useState(null);
+
+  // Filter ketat HANYA untuk pengguna yang sedang aktif login
+  const currentUserId = currentUser?.id || (currentUser?.username ? `usr-${currentUser.username}` : "");
+  const currentUsername = (currentUser?.username || "").toLowerCase();
+
+  const userJournals = journals.filter(j => {
+    if (!currentUser) return false;
+    if (j.userId && (j.userId === currentUserId || j.userId === currentUser.id)) return true;
+    if (j.username && j.username.toLowerCase() === currentUsername) return true;
+    if (!j.userId && !j.username && (currentUsername === "farras" || currentUserId === "usr-farras")) return true;
+    return false;
+  });
+
+  const totalJournals = userJournals.length;
+  const totalPhotos = userJournals.filter(j => j.fotoUrl || (Array.isArray(j.attachments) && j.attachments.some(a => a.type === "image"))).length;
+  const totalLinks = userJournals.filter(j => j.linkUrl || j.driveLink).length;
+
+  const sortedJournals = [...userJournals].sort((a, b) => {
+    const diffDate = String(b.tanggal || "").localeCompare(String(a.tanggal || ""));
+    if (diffDate !== 0) return diffDate;
+    return String(b.createdAt || b.id || "").localeCompare(String(a.createdAt || a.id || ""));
+  });
+
+  // Ambil 5 jurnal terbaru, lalu susun dari terlama ke terbaru
+  const recentJournals = sortedJournals.slice(0, 5).sort((a, b) => {
+    const diffDate = String(a.tanggal || "").localeCompare(String(b.tanggal || ""));
+    if (diffDate !== 0) return diffDate;
+    return String(a.createdAt || a.id || "").localeCompare(String(b.createdAt || b.id || ""));
+  });
 
   const userDisplayName = pegawai?.nama || currentUser?.nama || currentUser?.username || "Pegawai";
   const userNip = pegawai?.nip || currentUser?.nip || "ASN / Pegawai";
@@ -257,34 +285,65 @@ export default function HomeSection({
       </section>
 
       {/* 6. Recent Journal Activities (Clean list, honest typography) */}
-      {recentJournals.length > 0 && (
-        <section className="home-recent-section" aria-label="Aktivitas Terkini">
-          <div className="home-recent-header">
+      <section className="home-recent-section" aria-label="Aktivitas Terkini">
+        <div className="home-recent-header">
+          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
             <div>
               <h2 className="home-recent-title">Aktivitas Terkini</h2>
-              <span className="home-recent-subtitle">Catatan terbaru yang berhasil dihimpun</span>
+              <span className="home-recent-subtitle">5 Catatan Terakhir Pegawai</span>
             </div>
-
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => onNavigate("jurnal")}
-            >
-              <span>Lihat Semua Jurnal ({totalJournals})</span>
-              <ArrowRight size={13} />
-            </button>
+            {recentJournals.length > 0 && (
+              <span style={{
+                fontSize: "0.72rem",
+                background: "rgba(52, 99, 75, 0.1)",
+                color: "var(--accent-primary, #244937)",
+                padding: "0.2rem 0.6rem",
+                borderRadius: "12px",
+                fontWeight: "700"
+              }}>
+                Terlama → Terbaru
+              </span>
+            )}
           </div>
 
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => onNavigate("jurnal")}
+          >
+            <span>Lihat Semua Jurnal ({totalJournals})</span>
+            <ArrowRight size={13} />
+          </button>
+        </div>
+
+        {recentJournals.length > 0 ? (
           <div className="home-recent-list">
             {recentJournals.map((j, index) => {
-              const hasPhoto = j.fotoUrl || (Array.isArray(j.attachments) && j.attachments.some(a => a.type === "image"));
-              const hasLink = Boolean(j.linkUrl || j.driveLink);
+              const atts = Array.isArray(j.attachments) ? j.attachments : [];
+              const photoItem = atts.find(a => a.type === "image" || /\.(jpe?g|png|gif|webp)$/i.test(a.fileName || "")) || (j.fotoUrl ? { fotoUrl: j.fotoUrl } : null);
+              const docItem = atts.find(a => a.type !== "image" && !/\.(jpe?g|png|gif|webp)$/i.test(a.fileName || "") && (a.fileUrl || a.fileName)) || ((j.fileUrl || j.fileName) && !photoItem ? { fileUrl: j.fileUrl, fileName: j.fileName } : null);
+              const isRealDrive = Boolean(j.linkUrl && typeof j.linkUrl === "string" && !j.linkUrl.includes("/uploads/") && (j.linkUrl.startsWith("http://") || j.linkUrl.startsWith("https://")));
 
               return (
                 <div key={j.id || index} className="home-recent-row">
                   <div className="home-recent-left">
+                    <span style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "24px",
+                      height: "24px",
+                      borderRadius: "50%",
+                      background: "var(--bg-tertiary, #f1f5f9)",
+                      color: "var(--text-muted, #64748b)",
+                      fontSize: "0.72rem",
+                      fontWeight: "700",
+                      flexShrink: 0
+                    }}>
+                      {index + 1}
+                    </span>
                     <span className="home-recent-date-badge">{j.tanggal}</span>
-                    <div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="home-recent-activity">{j.aktivitas}</div>
                       <div className="home-recent-meta">
                         <span>Hasil: {j.outputJumlah || "1 Kegiatan"}</span>
@@ -293,23 +352,176 @@ export default function HomeSection({
                     </div>
                   </div>
 
-                  <div className="home-recent-badges">
-                    {hasPhoto && (
-                      <span className="home-micro-tag">
-                        <Camera size={12} /> Foto
-                      </span>
+                  <div className="home-recent-badges" style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+                    {photoItem && (
+                      <button
+                        type="button"
+                        onClick={() => setActivePhotoModal({
+                          aktivitas: j.aktivitas,
+                          tanggal: j.tanggal,
+                          outputJumlah: j.outputJumlah,
+                          fotoUrl: photoItem.fotoUrl || photoItem.fileUrl
+                        })}
+                        style={{
+                          fontSize: "0.72rem",
+                          color: "#059669",
+                          background: "#ecfdf5",
+                          border: "1px solid #a7f3d0",
+                          padding: "0.2rem 0.55rem",
+                          borderRadius: "6px",
+                          fontWeight: "600",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          cursor: "pointer"
+                        }}
+                        title="Klik untuk memperbesar foto bukti"
+                      >
+                        <Camera size={11} />
+                        <span>Lihat Foto</span>
+                      </button>
                     )}
-                    {hasLink && (
-                      <span className="home-micro-tag">
-                        <Link2 size={12} /> Drive
-                      </span>
+
+                    {docItem && (
+                      <a
+                        href={docItem.fileUrl || (j.linkUrl?.includes("/uploads/") ? j.linkUrl : "#")}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          fontSize: "0.72rem",
+                          color: "#334155",
+                          background: "#f1f5f9",
+                          border: "1px solid #cbd5e1",
+                          padding: "0.2rem 0.55rem",
+                          borderRadius: "6px",
+                          fontWeight: "600",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          textDecoration: "none",
+                          cursor: "pointer"
+                        }}
+                        title="Klik untuk membuka dokumen berkas"
+                      >
+                        <FileText size={11} />
+                        <span>{docItem.fileName || "Dokumen"}</span>
+                        <ExternalLink size={10} />
+                      </a>
+                    )}
+
+                    {isRealDrive && (
+                      <a
+                        href={j.linkUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          fontSize: "0.72rem",
+                          color: "#2563eb",
+                          background: "#eff6ff",
+                          border: "1px solid #bfdbfe",
+                          padding: "0.2rem 0.55rem",
+                          borderRadius: "6px",
+                          fontWeight: "600",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          textDecoration: "none",
+                          cursor: "pointer"
+                        }}
+                        title="Buka tautan link"
+                      >
+                        <Link2 size={11} />
+                        <span>Link</span>
+                        <ExternalLink size={10} />
+                      </a>
                     )}
                   </div>
                 </div>
               );
             })}
           </div>
-        </section>
+        ) : (
+          <div style={{
+            textAlign: "center",
+            padding: "2rem 1rem",
+            color: "var(--text-muted)",
+            fontSize: "0.85rem",
+            background: "var(--bg-tertiary, #f8fafc)",
+            borderRadius: "8px",
+            border: "1px dashed var(--border-subtle, #cbd5e1)",
+            marginTop: "0.5rem"
+          }}>
+            <p style={{ margin: "0 0 0.4rem 0", fontWeight: "600" }}>
+              Belum ada jurnal tercatat untuk akun <b>{userDisplayName}</b>.
+            </p>
+            <p style={{ margin: 0, fontSize: "0.78rem" }}>
+              Silakan tambahkan jurnal harian Anda melalui menu Jurnal atau bot Telegram.
+            </p>
+          </div>
+        )}
+      </section>
+
+      {/* Modal Zoom Foto di Beranda */}
+      {activePhotoModal && (
+        <div 
+          className="modal-overlay" 
+          onClick={() => setActivePhotoModal(null)}
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.75)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "1rem"
+          }}
+        >
+          <div 
+            className="modal-content" 
+            onClick={(e) => e.stopPropagation()} 
+            style={{ 
+              maxWidth: "680px", 
+              width: "100%",
+              padding: "1.25rem", 
+              background: "var(--bg-secondary, #ffffff)",
+              borderRadius: "12px",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)"
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+              <h4 style={{ fontSize: "0.95rem", fontWeight: "700", margin: 0, color: "var(--text-primary)" }}>
+                📷 Bukti Foto Kegiatan
+              </h4>
+              <button 
+                type="button"
+                className="btn btn-secondary btn-icon btn-sm" 
+                onClick={() => setActivePhotoModal(null)}
+                style={{ cursor: "pointer", background: "none", border: "none", color: "var(--text-muted)" }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div style={{ textAlign: "center", background: "#0f172a", borderRadius: "8px", overflow: "hidden", padding: "0.5rem" }}>
+              <img 
+                src={activePhotoModal.fotoUrl} 
+                alt={activePhotoModal.aktivitas} 
+                style={{ maxWidth: "100%", maxHeight: "65vh", objectFit: "contain", borderRadius: "4px" }}
+              />
+            </div>
+            <div style={{ marginTop: "0.75rem", fontSize: "0.84rem", color: "var(--text-primary)", fontWeight: "600" }}>
+              {activePhotoModal.aktivitas}
+            </div>
+            <div style={{ marginTop: "0.35rem", fontSize: "0.75rem", color: "var(--text-muted)", display: "flex", justifyContent: "space-between" }}>
+              <span>📅 Tanggal: {activePhotoModal.tanggal}</span>
+              <span>📊 Output: {activePhotoModal.outputJumlah}</span>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

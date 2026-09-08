@@ -246,10 +246,19 @@ export async function fetchTelegramBotStatus() {
 /**
  * Sinkronisasi data awal dengan Backend (jika server Node.js aktif)
  */
-export async function syncWithBackend() {
+export async function syncWithBackend(localJournals = null) {
   try {
-    const res = await fetch("/api/sync");
-    if (res.ok) {
+    let res;
+    if (Array.isArray(localJournals) && localJournals.length > 0) {
+      res = await fetch("/api/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ journals: localJournals })
+      });
+    } else {
+      res = await fetch("/api/sync");
+    }
+    if (res && res.ok) {
       const data = await res.json();
       if (data && data.botConfig) {
         cachedBotConfig = {

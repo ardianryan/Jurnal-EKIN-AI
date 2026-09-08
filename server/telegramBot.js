@@ -1498,13 +1498,23 @@ export function handleProfile(botInstance, msg) {
 /**
  * Handler Perintah /jurnal (melihat jurnal terbaru)
  */
-export function handleJournals(botInstance, msg) {
+export async function handleJournals(botInstance, msg) {
   const chatId = msg.chat.id;
   const session = getTelegramSession(chatId);
 
   if (!session) {
     return botInstance.sendMessage(chatId, `⚠️ Anda belum login. Ketik \`/login <username> <password>\``, { parse_mode: "Markdown" });
   }
+
+  // Jika database eksternal aktif, muat data terbaru dari DB terlebih dahulu
+  try {
+    if (getActiveDbType() !== "json") {
+      const remoteStore = await loadStoreFromDatabase();
+      if (remoteStore) {
+        setCachedStore(remoteStore);
+      }
+    }
+  } catch (e) {}
 
   const journals = getJournals(session.userId);
   if (journals.length === 0) {
@@ -1525,7 +1535,14 @@ export function handleJournals(botInstance, msg) {
     );
   }
 
-  const recent = journals.slice(0, 5);
+  // Ambil 5 jurnal terbaru, lalu susun urutannya dari terlama ke terbaru
+  const recent = journals.slice(0, 5).sort((a, b) => {
+    const diffDate = String(a.tanggal || "").localeCompare(String(b.tanggal || ""));
+    if (diffDate !== 0) return diffDate;
+    const timeA = String(a.createdAt || a.id || "");
+    const timeB = String(b.createdAt || b.id || "");
+    return timeA.localeCompare(timeB);
+  });
   let text = `📝 *5 Jurnal Terakhir Anda:*\n\n`;
 
   recent.forEach((j, idx) => {
@@ -2243,7 +2260,7 @@ export async function handleIncomingText(botInstance, msg) {
       aktivitasKasaran: cleanText,
       outputJumlah: polished.outputJumlah,
       catatan: polished.catatan,
-      linkUrl: detectedUrl || (firstAtt ? firstAtt.fileUrl : ""),
+      linkUrl: detectedUrl || "",
       attachments: attachedEvidences,
       source: "telegram",
       aiEngine: polished.source
@@ -2294,9 +2311,9 @@ export async function handleIncomingText(botInstance, msg) {
     }
 
     if (detectedUrl) {
-      reply += `🔗 *Tautan Drive*: ${detectedUrl}\n`;
+      reply += `🔗 *Tautan Link*: ${detectedUrl}\n`;
     } else if (newEntry.linkUrl && !firstAtt) {
-      reply += `🔗 *Tautan Eviden*: [Klik Google Drive](${newEntry.linkUrl})\n`;
+      reply += `🔗 *Tautan Link*: [Buka Link](${newEntry.linkUrl})\n`;
     }
 
     reply += `\n🔍 _Input Kasaran: "${cleanText}"_\n` +
@@ -2600,7 +2617,7 @@ async function processMediaGroup(botInstance, mgId) {
       outputJumlah: polished.outputJumlah,
       catatan: `Disertai ${items.length} berkas bukti dokumen/foto dokumentasi.`,
       attachments: items,
-      linkUrl: detectedUrl || primary.fileUrl || "",
+      linkUrl: detectedUrl || "",
       source: "telegram-album",
       aiEngine: polished.source
     });
@@ -2715,7 +2732,7 @@ async function handleIncomingAttachment(botInstance, msg, item) {
       outputJumlah: polished.outputJumlah,
       catatan: item.type === "image" ? "Disertai foto dokumentasi fisik lapangan." : `Disertai dokumen eviden ${item.fileName}.`,
       attachments: [item],
-      linkUrl: detectedUrl || item.fileUrl || "",
+      linkUrl: detectedUrl || "",
       source: item.type === "image" ? "telegram-photo" : "telegram-document",
       aiEngine: polished.source
     });
@@ -2731,7 +2748,7 @@ async function handleIncomingAttachment(botInstance, msg, item) {
       reply += `📎 *Tautan Berkas Aplikasi*: ${item.fileUrl}\n`;
     }
     if (detectedUrl) {
-      reply += `🔗 *Tautan Drive*: ${detectedUrl}\n`;
+      reply += `🔗 *Tautan Link*: ${detectedUrl}\n`;
     }
 
     reply += `\nSilakan pilih menu di bawah atau ketik aktivitas lainnya:`;
@@ -2832,7 +2849,8 @@ async function handleIncomingAttachment(botInstance, msg, item) {
             const resp = await fetch(fileLink);
             if (resp.ok) {
               const buf = Buffer.from(await resp.arrayBuffer());
-              const tempName = `temp_${Date.now()}_${bestPhoto.file_id.slice(-6)}.jpg`;
+              const randSuffix = typeof crypto !== "undefined" && crypto.randomBytes ? crypto.randomBytes(3).toString("hex") : Math.random().toString(36).slice(2, 8);
+              const tempName = `temp_${Date.now()}_${randSuffix}.jpg`;
               downloadedPath = path.join(UPLOADS_DIR, tempName);
               fs.writeFileSync(downloadedPath, buf);
             }
@@ -2845,7 +2863,8 @@ async function handleIncomingAttachment(botInstance, msg, item) {
         let photoFileName = "";
 
         if (downloadedPath && fs.existsSync(downloadedPath)) {
-          const newPhotoName = `Foto_${monthTag}_${Date.now()}_${crypto.randomBytes(3).toString("hex")}.jpg`;
+          const randSuffix = typeof crypto !== "undefined" && crypto.randomBytes ? crypto.randomBytes(3).toString("hex") : Math.random().toString(36).slice(2, 8);
+          const newPhotoName = `Foto_${monthTag}_${Date.now()}_${randSuffix}.jpg`;
 
           if (isR2Configured()) {
             try {
@@ -2869,6 +2888,14 @@ async function handleIncomingAttachment(botInstance, msg, item) {
         }
       } catch (dlErr) {
         console.warn("Gagal mengunduh berkas foto fisik:", dlErr.message);
+      }
+
+      if (!savedFilePath && !photoFileUrl) {
+        return bot.sendMessage(
+          chatId,
+          "⚠️ *Gagal Menyimpan Foto*: Berkas foto fisik tidak dapat diunduh ke server penyimpanan. Pastikan folder uploads memiliki izin tulis atau kirim ulang foto Anda.",
+          { parse_mode: "Markdown" }
+        );
       }
 
       const baseAppUrl = (process.env.APP_URL || "").trim().replace(/\/+$/, "");
@@ -2946,7 +2973,8 @@ async function handleIncomingAttachment(botInstance, msg, item) {
             const resp = await fetch(fileLink);
             if (resp.ok) {
               const buf = Buffer.from(await resp.arrayBuffer());
-              const tempName = `temp_${Date.now()}_${doc.file_id.slice(-6)}_${cleanFileName}`;
+              const randSuffix = typeof crypto !== "undefined" && crypto.randomBytes ? crypto.randomBytes(3).toString("hex") : Math.random().toString(36).slice(2, 8);
+              const tempName = `temp_${Date.now()}_${randSuffix}_${cleanFileName}`;
               downloadedPath = path.join(UPLOADS_DIR, tempName);
               fs.writeFileSync(downloadedPath, buf);
             }
@@ -2959,7 +2987,8 @@ async function handleIncomingAttachment(botInstance, msg, item) {
         let storedFileName = "";
 
         if (downloadedPath && fs.existsSync(downloadedPath)) {
-          const newStoredName = `${Date.now()}_${docFileName}`;
+          const randSuffix = typeof crypto !== "undefined" && crypto.randomBytes ? crypto.randomBytes(3).toString("hex") : Math.random().toString(36).slice(2, 8);
+          const newStoredName = `${Date.now()}_${randSuffix}_${docFileName}`;
 
           if (isR2Configured()) {
             try {
@@ -2983,6 +3012,14 @@ async function handleIncomingAttachment(botInstance, msg, item) {
         }
       } catch (dlErr) {
         console.warn("Gagal mengunduh berkas dokumen:", dlErr.message);
+      }
+
+      if (!savedFilePath && !docFileUrl) {
+        return bot.sendMessage(
+          chatId,
+          "⚠️ *Gagal Menyimpan Dokumen*: Berkas dokumen tidak dapat diunduh ke server penyimpanan. Pastikan folder uploads memiliki izin tulis atau kirim ulang dokumen Anda.",
+          { parse_mode: "Markdown" }
+        );
       }
 
       const baseAppUrl = (process.env.APP_URL || "").trim().replace(/\/+$/, "");

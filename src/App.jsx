@@ -76,11 +76,16 @@ export default function App() {
   const [lastSyncTime, setLastSyncTime] = useState(null);
   const isRemoteSyncRef = useRef(false);
 
-  // Fungsi Sinkronisasi Aktif (Server Database, Telegram Bot & Web LocalStorage)
   const fetchAndSyncJournals = useCallback(async (isManual = false) => {
     try {
       setIsSyncing(true);
-      const res = await syncWithBackend();
+      let localToPush = [];
+      try {
+        const raw = localStorage.getItem("ekinerja_journals");
+        localToPush = raw ? JSON.parse(raw) : [];
+      } catch (e) {}
+
+      const res = await syncWithBackend(localToPush);
       if (res) {
         if (res.botConfig) {
           setBotConfig(res.botConfig);
@@ -460,13 +465,28 @@ export default function App() {
     );
   }
 
+  // Hitung jumlah jurnal khusus user aktif
+  const currentUserId = currentUser?.id || (currentUser?.username ? `usr-${currentUser.username}` : "");
+  const currentUsername = (currentUser?.username || "").toLowerCase();
+  const isSuperadmin = currentUser?.role === "superadmin";
+
+  const userJournalsCount = isSuperadmin
+    ? journals.length
+    : journals.filter(j => {
+        if (!currentUser) return false;
+        if (j.userId && (j.userId === currentUserId || j.userId === currentUser.id)) return true;
+        if (j.username && j.username.toLowerCase() === currentUsername) return true;
+        if (!j.userId && !j.username && (currentUsername === "farras" || currentUserId === "usr-farras")) return true;
+        return false;
+      }).length;
+
   return (
     <div className="app-shell">
       {/* Google Account Modern Sidebar */}
       <Sidebar
         activeTab={activeTab}
         onNavigate={navigateToTab}
-        journalsCount={journals.length}
+        journalsCount={userJournalsCount}
         currentUser={currentUser}
         onOpenGeminiModal={() => setIsGeminiModalOpen(true)}
         onOpenLoginModal={() => setIsLoginModalOpen(true)}
@@ -636,8 +656,8 @@ export default function App() {
         >
           <div className="mobile-nav-icon-wrap">
             <Camera size={19} />
-            {journals.length > 0 && (
-              <span className="mobile-nav-badge">{journals.length > 99 ? "99+" : journals.length}</span>
+            {userJournalsCount > 0 && (
+              <span className="mobile-nav-badge">{userJournalsCount > 99 ? "99+" : userJournalsCount}</span>
             )}
           </div>
           <span>Jurnal</span>

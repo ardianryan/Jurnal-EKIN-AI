@@ -506,6 +506,14 @@ export function cleanDuplicatePhrases(str) {
   // 3. Bersihkan konjungsi berulang (misal: 'serta serta...', 'dan dan...')
   cleaned = cleaned.replace(/\b(serta|dan|lalu|kemudian)\s+\1\b/gi, "$1");
 
+  // 4. Bersihkan duplikasi istilah bertumpuk dalam tanda kurung (misal: "Istilah (Istilah (SINGKATAN))" -> "Istilah (SINGKATAN)")
+  cleaned = cleaned.replace(/([A-Za-z0-9\s]+?)\s*\(\s*\1\s*\(([^()]+)\)\s*\)/gi, "$1 ($2)");
+  cleaned = cleaned.replace(/([A-Za-z0-9\s]+?)\s*\(\s*\1\s*\)/gi, "$1");
+  cleaned = cleaned.replace(/\(([^()]+)\s*\(\1\)\)/gi, "($1)");
+
+  // 5. Bersihkan kata sambung/preposisi menggantung di akhir kalimat sebelum tanda baca (misal: "...bukti di." -> "...bukti.")
+  cleaned = cleaned.replace(/\s+\b(di|pada|ke|melalui|lewat|link|tautan|url)\s*([.,;:]|$)/gi, "$2");
+
   return cleaned.trim();
 }
 
@@ -595,7 +603,7 @@ export function normalizeAbbreviations(text) {
 
   // 4. Singkatan Pendidikan & Satuan Pendidikan
   s = s.replace(/\bbimtek\b/gi, "Bimbingan Teknis (Bimtek)");
-  s = s.replace(/\btka\b/gi, "Tes Kemampuan Akademik (TKA)");
+  s = s.replace(/(?<!\()\btka\b(?!\))/gi, "Tes Kemampuan Akademik (TKA)");
   s = s.replace(/\banbk\b/gi, "Asesmen Nasional Berbasis Komputer (ANBK)");
   s = s.replace(/\bkbm\b/gi, "Kegiatan Belajar Mengajar (KBM)");
   s = s.replace(/\brpp\b/gi, "Rencana Pelaksanaan Pembelajaran (RPP)");
@@ -781,6 +789,48 @@ export function normalizeAbbreviations(text) {
   s = s.replace(/\b(minta|mintak)\b/gi, "mengajukan permohonan");
   s = s.replace(/\bketemu\b/gi, "berkoordinasi dengan");
   s = s.replace(/\b(ngobrol|ngomongin)\b/gi, "berdiskusi mengenai");
+  s = s.replace(/\b(trs|trus)\b/gi, "kemudian");
+  s = s.replace(/\b(benerin|benahi|beneri)\b/gi, "memperbaiki");
+  s = s.replace(/\b(ngurus|urus)\b/gi, "mengurus");
+  s = s.replace(/\b(ngantar|nganter|ngantarkan)\b/gi, "mengantarkan");
+  s = s.replace(/\b(antar surat|kirim surat)\b/gi, "mendistribusikan surat dinas");
+  s = s.replace(/\b(nyiapin|siapin)\b/gi, "mempersiapkan");
+  s = s.replace(/\b(nyusun|susun)\b/gi, "menyusun");
+  s = s.replace(/\b(cek|ngecek)\b/gi, "memeriksa");
+  s = s.replace(/\b(bikin|buat)\b/gi, "menyusun dan membuat");
+  s = s.replace(/\b(masukin|input)\b/gi, "menginput");
+  s = s.replace(/\b(nyari|cari)\b/gi, "mengumpulkan");
+  s = s.replace(/\b(nerima|terima)\b/gi, "menerima");
+  s = s.replace(/\b(ngetik|ketik)\b/gi, "mengetik dan menyusun");
+  s = s.replace(/\b(bagiin|bagi)\b/gi, "mendistribusikan");
+  s = s.replace(/\b(ikutan|ikut)\b/gi, "mengikuti");
+  s = s.replace(/\b(rapat|rembukan)\b/gi, "rapat koordinasi");
+  s = s.replace(/\bsurat msk\b/gi, "surat masuk");
+  s = s.replace(/\bsurat klr\b/gi, "surat keluar");
+  s = s.replace(/\bdispo\b/gi, "lembar disposisi");
+  s = s.replace(/\bagendain\b/gi, "mencatat buku agenda");
+  s = s.replace(/\bfotoin\b/gi, "mendokumentasikan");
+  s = s.replace(/\b(scan|nyecan)\b/gi, "memindai (scanning) dokumen");
+  s = s.replace(/\b(fotocopy|fotokopi|kopi)\b/gi, "menggandakan dokumen");
+  s = s.replace(/\b(print|ngeprint)\b/gi, "mencetak dokumen");
+  s = s.replace(/\bttd\b/gi, "penandatanganan dokumen");
+  s = s.replace(/\bparaf\b/gi, "paraf persetujuan");
+  s = s.replace(/\b(kepsek|kasek)\b/gi, "Kepala Sekolah");
+  s = s.replace(/\bkadis\b/gi, "Kepala Dinas");
+  s = s.replace(/\bsekdis\b/gi, "Sekretaris Dinas");
+  s = s.replace(/\bkabid\b/gi, "Kepala Bidang");
+  s = s.replace(/\bkasi\b/gi, "Kepala Seksi");
+  s = s.replace(/\bkasubag\b/gi, "Kepala Sub Bagian");
+  s = s.replace(/\btu\b/gi, "Tata Usaha (TU)");
+  s = s.replace(/\bwalmur\b/gi, "wali murid");
+  s = s.replace(/\bortu\b/gi, "orang tua siswa");
+  s = s.replace(/\blab\b/gi, "laboratorium");
+  s = s.replace(/\b(komp|pc)\b/gi, "perangkat komputer");
+  s = s.replace(/\blaptop\b/gi, "perangkat laptop");
+  s = s.replace(/\binfocus\b/gi, "proyektor LCD");
+  s = s.replace(/\b(beresin|bereskan)\b/gi, "merapikan dan menata");
+  s = s.replace(/\b(nyelesain|selesaiin)\b/gi, "menyelesaikan");
+  s = s.replace(/\bbantu\b/gi, "membantu pelaksanaan");
 
   // Rapikan spasi berlebih
   s = s.replace(/\s+/g, " ").trim();

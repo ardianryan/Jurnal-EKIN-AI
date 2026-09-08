@@ -1,10 +1,10 @@
 import Sheet from "./ui/Sheet";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { 
   BookOpen, Plus, PlusCircle, Camera, Trash2, Sparkles, 
   Calendar, Clock, CheckCircle2, FileText, ExternalLink, 
   X, ZoomIn, Paperclip, FileSpreadsheet, Link2, Briefcase, Edit3,
-  RefreshCw
+  RefreshCw, ChevronDown, Search, Check, Filter
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { processEvidenceFile } from "../utils/fileUtils";
@@ -35,11 +35,52 @@ export default function JournalSection({
   const formContainerRef = useRef(null);
   const [originalKasaran, setOriginalKasaran] = useState("");
   const [selectedJabatanOverride, setSelectedJabatanOverride] = useState("");
+  const [isProfesiOpen, setIsProfesiOpen] = useState(false);
+  const [profesiSearch, setProfesiSearch] = useState("");
+  const profesiRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (profesiRef.current && !profesiRef.current.contains(event.target)) {
+        setIsProfesiOpen(false);
+      }
+    }
+    if (isProfesiOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isProfesiOpen]);
 
   const currentJabatan = pegawai?.jabatan || currentUser?.jabatan || "";
   const activeJabatanForExamples = selectedJabatanOverride || currentJabatan;
   const accounts = getAccounts();
   const casualData = getCasualExamplesForUser(activeJabatanForExamples, journals, accounts);
+
+  const filteredJabatanList = (casualData.allJabatanList || []).filter((j) => {
+    if (!profesiSearch.trim()) return true;
+    const q = profesiSearch.toLowerCase();
+    return (
+      (j.nama && j.nama.toLowerCase().includes(q)) ||
+      (j.kategori && j.kategori.toLowerCase().includes(q))
+    );
+  });
+
+  // Filter jurnal khusus pengguna yang sedang login
+  const currentUserId = currentUser?.id || (currentUser?.username ? `usr-${currentUser.username}` : "");
+  const currentUsername = (currentUser?.username || "").toLowerCase();
+  const isSuperadmin = currentUser?.role === "superadmin";
+
+  const displayedJournals = isSuperadmin 
+    ? journals 
+    : journals.filter(j => {
+        if (!currentUser) return false;
+        if (j.userId && (j.userId === currentUserId || j.userId === currentUser.id)) return true;
+        if (j.username && j.username.toLowerCase() === currentUsername) return true;
+        if (!j.userId && !j.username && (currentUsername === "farras" || currentUserId === "usr-farras")) return true;
+        return false;
+      });
 
   const [formData, setFormData] = useState({
     tanggal: new Date().toISOString().slice(0, 10),
@@ -158,8 +199,7 @@ export default function JournalSection({
           fileSize: processed.size,
           originalSize: processed.originalSize || "",
           fotoUrl: processed.dataUrl,
-          fileUrl: serverFileUrl,
-          linkUrl: serverFileUrl
+          fileUrl: serverFileUrl
         });
       }
 
@@ -177,7 +217,7 @@ export default function JournalSection({
           originalSize: first ? first.originalSize : "",
           fotoUrl: first ? first.fotoUrl : "",
           fileUrl: first ? first.fileUrl : "",
-          linkUrl: prev.linkUrl || (first ? first.fileUrl : "")
+          linkUrl: prev.linkUrl || ""
         };
       });
     } catch (err) {
@@ -780,48 +820,244 @@ export default function JournalSection({
 
                 {/* Opsi ganti profesi contoh jika multi-tasking */}
                 {casualData.allJabatanList && casualData.allJabatanList.length > 0 && (
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
-                    <label htmlFor="select-jabatan-contoh" style={{ fontSize: "0.7rem", color: "var(--text-muted)", margin: 0 }}>
-                      Lihat profesi lain:
-                    </label>
-                    <select 
-                      id="select-jabatan-contoh"
-                      className="form-select form-select-sm"
-                      value={selectedJabatanOverride || casualData.matchedJabatan?.nama || ""}
-                      onChange={(e) => setSelectedJabatanOverride(e.target.value)}
-                      style={{
-                        fontSize: "0.74rem",
-                        padding: "0 1.8rem 0 0.55rem",
-                        height: "26px",
-                        borderRadius: "6px",
-                        border: "1px solid var(--border-subtle)",
-                        background: "var(--bg-primary)",
-                        color: "var(--text-secondary)"
+                  <div ref={profesiRef} style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: "0.45rem", flexWrap: "wrap" }}>
+                    <span 
+                      style={{ 
+                        fontSize: "0.72rem", 
+                        fontWeight: "600",
+                        color: "var(--text-muted)", 
+                        margin: 0,
+                        whiteSpace: "nowrap"
                       }}
                     >
-                      {casualData.allJabatanList.map((j) => (
-                        <option key={j.id} value={j.nama}>
-                          {j.nama}
-                        </option>
-                      ))}
-                    </select>
+                      Lihat profesi lain:
+                    </span>
+
+                    {/* Custom Popover Trigger Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsProfesiOpen(!isProfesiOpen);
+                        setProfesiSearch("");
+                      }}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        fontSize: "0.74rem",
+                        fontWeight: "600",
+                        padding: "0.24rem 0.65rem",
+                        borderRadius: "8px",
+                        border: selectedJabatanOverride 
+                          ? "1.5px solid var(--accent-primary, #3b82f6)" 
+                          : "1px solid var(--border-color, #cbd5e1)",
+                        background: selectedJabatanOverride 
+                          ? "rgba(59, 130, 246, 0.08)" 
+                          : "var(--bg-secondary, #f8fafc)",
+                        color: selectedJabatanOverride 
+                          ? "var(--accent-primary, #2563eb)" 
+                          : "var(--text-primary, #1e293b)",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                        boxShadow: isProfesiOpen 
+                          ? "0 0 0 2px rgba(59, 130, 246, 0.2)" 
+                          : "none"
+                      }}
+                      title="Klik untuk memilih profesi/jabatan lain"
+                    >
+                      <Briefcase size={12} style={{ opacity: 0.8 }} />
+                      <span style={{ 
+                        maxWidth: "180px", 
+                        overflow: "hidden", 
+                        textOverflow: "ellipsis", 
+                        whiteSpace: "nowrap" 
+                      }}>
+                        {selectedJabatanOverride || casualData.matchedJabatan?.nama || "Pilih Profesi"}
+                      </span>
+                      <ChevronDown 
+                        size={12} 
+                        style={{ 
+                          transition: "transform 0.2s ease",
+                          transform: isProfesiOpen ? "rotate(180deg)" : "none",
+                          opacity: 0.7
+                        }} 
+                      />
+                    </button>
+
                     {selectedJabatanOverride && (
                       <button
                         type="button"
-                        onClick={() => setSelectedJabatanOverride("")}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          fontSize: "0.7rem",
-                          color: "var(--accent-primary, #3b82f6)",
-                          cursor: "pointer",
-                          textDecoration: "underline",
-                          padding: "0 2px"
+                        onClick={() => {
+                          setSelectedJabatanOverride("");
+                          setIsProfesiOpen(false);
                         }}
-                        title="Kembali ke jabatan saya"
+                        style={{
+                          background: "#fee2e2",
+                          border: "1px solid #fca5a5",
+                          borderRadius: "6px",
+                          fontSize: "0.7rem",
+                          fontWeight: "600",
+                          color: "#dc2626",
+                          cursor: "pointer",
+                          padding: "0.18rem 0.45rem",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "3px"
+                        }}
+                        title="Kembali ke jabatan default saya"
                       >
-                        Reset
+                        <X size={11} />
+                        <span>Reset</span>
                       </button>
+                    )}
+
+                    {/* Custom Popover Dropdown Menu */}
+                    {isProfesiOpen && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "calc(100% + 6px)",
+                          right: 0,
+                          width: "300px",
+                          maxHeight: "340px",
+                          background: "var(--bg-primary, #ffffff)",
+                          border: "1px solid var(--border-color, #e2e8f0)",
+                          borderRadius: "10px",
+                          boxShadow: "0 12px 28px -4px rgba(0, 0, 0, 0.15), 0 8px 12px -4px rgba(0, 0, 0, 0.08)",
+                          zIndex: 1050,
+                          padding: "0.5rem",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.4rem"
+                        }}
+                      >
+                        {/* Search Input */}
+                        <div style={{
+                          position: "relative",
+                          display: "flex",
+                          alignItems: "center"
+                        }}>
+                          <Search size={13} style={{ position: "absolute", left: "9px", color: "var(--text-muted, #94a3b8)", pointerEvents: "none" }} />
+                          <input
+                            type="text"
+                            value={profesiSearch}
+                            onChange={(e) => setProfesiSearch(e.target.value)}
+                            placeholder="Cari profesi / jabatan..."
+                            autoFocus
+                            style={{
+                              width: "100%",
+                              padding: "0.35rem 1.6rem 0.35rem 1.8rem",
+                              fontSize: "0.75rem",
+                              borderRadius: "6px",
+                              border: "1px solid var(--border-color, #cbd5e1)",
+                              background: "var(--bg-secondary, #f8fafc)",
+                              color: "var(--text-primary, #0f172a)",
+                              outline: "none"
+                            }}
+                          />
+                          {profesiSearch && (
+                            <button
+                              type="button"
+                              onClick={() => setProfesiSearch("")}
+                              style={{
+                                position: "absolute",
+                                right: "6px",
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: "2px",
+                                color: "var(--text-muted, #94a3b8)"
+                              }}
+                            >
+                              <X size={12} />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* List Items */}
+                        <div style={{
+                          overflowY: "auto",
+                          maxHeight: "240px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "2px"
+                        }}>
+                          {filteredJabatanList.length === 0 ? (
+                            <div style={{
+                              padding: "1rem",
+                              textAlign: "center",
+                              fontSize: "0.74rem",
+                              color: "var(--text-muted, #94a3b8)"
+                            }}>
+                              Tidak ditemukan profesi yang cocok
+                            </div>
+                          ) : (
+                            filteredJabatanList.map((j) => {
+                              const isSelected = (selectedJabatanOverride || casualData.matchedJabatan?.nama) === j.nama;
+                              return (
+                                <button
+                                  key={j.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedJabatanOverride(j.nama);
+                                    setIsProfesiOpen(false);
+                                  }}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    width: "100%",
+                                    textAlign: "left",
+                                    padding: "6px 9px",
+                                    borderRadius: "6px",
+                                    border: "none",
+                                    background: isSelected 
+                                      ? "rgba(59, 130, 246, 0.09)" 
+                                      : "transparent",
+                                    color: isSelected 
+                                      ? "var(--accent-primary, #2563eb)" 
+                                      : "var(--text-primary, #1e293b)",
+                                    cursor: "pointer",
+                                    transition: "background 0.12s ease"
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (!isSelected) e.currentTarget.style.background = "var(--bg-secondary, #f1f5f9)";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!isSelected) e.currentTarget.style.background = "transparent";
+                                  }}
+                                >
+                                  <div style={{ display: "flex", flexDirection: "column", gap: "1px", overflow: "hidden" }}>
+                                    <span style={{ 
+                                      fontSize: "0.75rem", 
+                                      fontWeight: isSelected ? "700" : "600",
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap"
+                                    }}>
+                                      {j.nama}
+                                    </span>
+                                    {j.kategori && (
+                                      <span style={{ 
+                                        fontSize: "0.66rem", 
+                                        color: "var(--text-muted, #64748b)",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap"
+                                      }}>
+                                        {j.kategori}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {isSelected && (
+                                    <Check size={14} style={{ color: "var(--accent-primary, #2563eb)", flexShrink: 0, marginLeft: "6px" }} />
+                                  )}
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
@@ -1092,7 +1328,7 @@ export default function JournalSection({
       </Sheet>
 
       {/* Daftar Jurnal & Galeri Berkas / Foto */}
-      {journals.length === 0 ? (
+      {displayedJournals.length === 0 ? (
         <div style={{ 
           textAlign: "center", 
           padding: "2.5rem 1rem", 
@@ -1139,7 +1375,7 @@ export default function JournalSection({
                 borderRadius: "12px",
                 border: "1px solid var(--border-subtle)"
               }}>
-                {journals.length} Kegiatan
+                {displayedJournals.length} Kegiatan
               </span>
             </div>
 
@@ -1159,7 +1395,7 @@ export default function JournalSection({
           </div>
 
           <div className="journal-list-scroll-wrapper">
-          {journals
+          {displayedJournals
             .filter((j) => {
               if (!searchQuery || !searchQuery.trim()) return true;
               const q = searchQuery.toLowerCase().trim();
@@ -1174,11 +1410,32 @@ export default function JournalSection({
             .map((j, index) => {
             const attList = Array.isArray(j.attachments) && j.attachments.length > 0
               ? j.attachments
-              : (j.fotoUrl || j.fileName ? [{ type: j.evidenceType || (j.fotoUrl ? "image" : "document"), fotoUrl: j.fotoUrl, fileName: j.fileName, fileSize: j.fileSize, docCategory: j.docCategory }] : []);
-            const photoAtt = attList.find(a => a.type === "image" && a.fotoUrl);
-            const isPhoto = Boolean(photoAtt);
-            const hasDocument = attList.some(a => a.type !== "image");
-            const hasLink = Boolean(j.linkUrl);
+              : (j.fotoUrl || j.fileName || j.fileUrl ? [{ 
+                  type: j.evidenceType || ((j.fotoUrl || (j.fileName && /\.(jpe?g|png|gif|webp)$/i.test(j.fileName)) || (j.fileUrl && /\.(jpe?g|png|gif|webp)$/i.test(j.fileUrl))) ? "image" : "document"), 
+                  fotoUrl: j.fotoUrl || (j.evidenceType === "image" ? j.fileUrl : ""), 
+                  fileUrl: j.fileUrl || j.fotoUrl, 
+                  fileName: j.fileName, 
+                  fileSize: j.fileSize, 
+                  docCategory: j.docCategory 
+                }] : []);
+            const photoAtt = attList.find(a => 
+              a.type === "image" || 
+              a.fotoUrl || 
+              (a.fileUrl && /\.(jpe?g|png|gif|webp)$/i.test(a.fileUrl)) ||
+              (a.fileName && /\.(jpe?g|png|gif|webp)$/i.test(a.fileName))
+            ) || (j.fotoUrl ? { fotoUrl: j.fotoUrl, fileUrl: j.fotoUrl } : null);
+            const isPhoto = Boolean(
+              photoAtt || 
+              j.fotoUrl || 
+              j.evidenceType === "image" || 
+              (j.fileUrl && /\.(jpe?g|png|gif|webp)$/i.test(j.fileUrl)) ||
+              (j.fileName && /\.(jpe?g|png|gif|webp)$/i.test(j.fileName))
+            );
+            const photoUrl = photoAtt?.fotoUrl || photoAtt?.fileUrl || j.fotoUrl || 
+              ((j.evidenceType === "image" || (j.fileUrl && /\.(jpe?g|png|gif|webp)$/i.test(j.fileUrl))) ? j.fileUrl : "");
+            const docAtt = attList.find(a => a.type !== "image" && (a.fileUrl || a.fileName));
+            const hasDocument = Boolean(docAtt || (j.fileName && !isPhoto));
+            const hasLink = Boolean(j.linkUrl && typeof j.linkUrl === "string" && !j.linkUrl.includes("/uploads/") && (j.linkUrl.startsWith("http://") || j.linkUrl.startsWith("https://")));
             const totalAtts = attList.length;
 
             return (
@@ -1210,25 +1467,37 @@ export default function JournalSection({
 
                 {/* Thumbnail Foto / Ikon Berkas */}
                 <div style={{ flexShrink: 0 }}>
-                  {isPhoto ? (
+                  {isPhoto && photoUrl ? (
                     <div 
-                      onClick={() => setActivePhotoModal({ ...j, fotoUrl: photoAtt.fotoUrl })}
+                      onClick={() => setActivePhotoModal({ ...j, fotoUrl: photoUrl })}
                       title="Klik untuk memperbesar foto"
                       style={{ 
                         width: "60px", 
                         height: "46px", 
-                        borderRadius: "4px", 
+                        borderRadius: "6px", 
                         overflow: "hidden", 
                         cursor: "pointer",
-                        border: "1px solid var(--border-strong)",
+                        border: "1px solid var(--border-strong, #cbd5e1)",
                         position: "relative",
-                        background: "#0f172a"
+                        background: "#0f172a",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center"
                       }}
                     >
                       <img 
-                        src={photoAtt.fotoUrl} 
+                        src={photoUrl} 
                         alt={j.aktivitas} 
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                          if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = "none";
+                          if (e.currentTarget.parentElement) {
+                            e.currentTarget.parentElement.style.background = "#f1f5f9";
+                            e.currentTarget.parentElement.innerHTML = '<span style="font-size:1.1rem" title="Foto lampiran">📷</span>';
+                          }
+                        }}
                       />
                       <div style={{
                         position: "absolute",
@@ -1239,7 +1508,8 @@ export default function JournalSection({
                         borderRadius: "3px",
                         padding: "1px 3px",
                         display: "flex",
-                        alignItems: "center"
+                        alignItems: "center",
+                        pointerEvents: "none"
                       }}>
                         <ZoomIn size={10} />
                       </div>
@@ -1248,7 +1518,7 @@ export default function JournalSection({
                     <div style={{ 
                       width: "46px", 
                       height: "46px", 
-                      borderRadius: "4px", 
+                      borderRadius: "6px", 
                       background: "var(--bg-tertiary)", 
                       display: "flex", 
                       alignItems: "center", 
@@ -1338,6 +1608,59 @@ export default function JournalSection({
                       </>
                     )}
 
+                    {/* Tombol Lihat Foto Langsung */}
+                    {isPhoto && photoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setActivePhotoModal({
+                          ...j,
+                          fotoUrl: photoUrl
+                        })}
+                        style={{
+                          fontSize: "0.72rem",
+                          background: "#ecfdf5",
+                          color: "#059669",
+                          border: "1px solid #a7f3d0",
+                          borderRadius: "4px",
+                          padding: "1px 7px",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "3px",
+                          fontWeight: "600"
+                        }}
+                        title="Lihat foto bukti kegiatan"
+                      >
+                        <ZoomIn size={11} /> Lihat Foto
+                      </button>
+                    )}
+
+                    {/* Tombol Buka Dokumen */}
+                    {hasDocument && (docAtt?.fileUrl || j.fileUrl) && (
+                      <a
+                        href={docAtt?.fileUrl || j.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          fontSize: "0.72rem",
+                          background: "#f1f5f9",
+                          color: "#475569",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "4px",
+                          padding: "1px 7px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "3px",
+                          fontWeight: "600",
+                          textDecoration: "none"
+                        }}
+                        title="Buka atau unduh dokumen lampiran"
+                      >
+                        <FileText size={11} /> Buka Dokumen
+                      </a>
+                    )}
+
+                    {/* Tombol Tautan Online */}
                     {hasLink && (
                       <a 
                         href={j.linkUrl} 
@@ -1346,14 +1669,19 @@ export default function JournalSection({
                         style={{ 
                           fontSize: "0.72rem", 
                           color: "var(--accent-primary)", 
+                          background: "var(--accent-emerald-subtle)",
+                          border: "1px solid var(--border-subtle)",
+                          borderRadius: "4px",
+                          padding: "1px 7px",
                           fontWeight: "600",
                           display: "inline-flex",
                           alignItems: "center",
                           gap: "3px",
                           textDecoration: "none"
                         }}
+                        title="Buka tautan link"
                       >
-                        <Link2 size={11} /> Tautan Drive <ExternalLink size={10} />
+                        <Link2 size={11} /> Link <ExternalLink size={10} />
                       </a>
                     )}
                   </div>
@@ -1361,11 +1689,11 @@ export default function JournalSection({
 
                 {/* Tombol Aksi */}
                 <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", flexShrink: 0 }}>
-                  {isPhoto && (
+                  {isPhoto && photoUrl && (
                     <button
                       type="button"
                       className="btn btn-secondary btn-icon btn-sm"
-                      onClick={() => setActivePhotoModal(j)}
+                      onClick={() => setActivePhotoModal({ ...j, fotoUrl: photoUrl })}
                       title="Perbesar Foto"
                       style={{ width: "30px", height: "30px", padding: 0 }}
                     >

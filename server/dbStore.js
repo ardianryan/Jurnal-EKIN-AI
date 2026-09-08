@@ -609,6 +609,7 @@ export function normalizeJournalAttachments(jrn) {
       filePath: att.filePath || att.fotoPath || "",
       fileName: att.fileName || (att.filePath ? path.basename(att.filePath) : `lampiran_${idx + 1}`),
       fileUrl: att.fileUrl || att.fotoUrl || "",
+      fotoUrl: att.fotoUrl || (att.type === "image" || (att.fileName && /\.(jpe?g|png|gif|webp)$/i.test(att.fileName)) ? (att.fileUrl || "") : ""),
       fileSize: att.fileSize || "",
       ext: att.ext || (att.fileName ? path.extname(att.fileName).toLowerCase() : "")
     }));
@@ -623,6 +624,7 @@ export function normalizeJournalAttachments(jrn) {
       filePath: jrn.fotoPath || "",
       fileName: jrn.fileName || (jrn.fotoPath ? path.basename(jrn.fotoPath) : "foto_kegiatan.jpg"),
       fileUrl: jrn.fileUrl || jrn.fotoUrl || "",
+      fotoUrl: jrn.fotoUrl || jrn.fileUrl || "",
       fileSize: jrn.fileSize || "",
       ext: jrn.fotoPath ? path.extname(jrn.fotoPath).toLowerCase() : ".jpg"
     });
@@ -644,7 +646,26 @@ export function getJournals(userId = null) {
   const store = getStore();
   const all = store.journals || [];
   if (!userId) return all;
-  return all.filter(j => j.userId === userId || (!j.userId && userId === "usr-farras"));
+
+  // Cari user info untuk mencocokkan id dan username secara akurat
+  const user = (store.accounts || []).find(a => a.id === userId || a.username === userId);
+  const targetId = user?.id || userId;
+  const targetUsername = (user?.username || (userId.startsWith("usr-") ? userId.slice(4) : userId)).toLowerCase();
+
+  const filtered = all.filter(j => {
+    if (j.userId && (j.userId === targetId || j.userId === userId)) return true;
+    if (j.username && j.username.toLowerCase() === targetUsername) return true;
+    if (!j.userId && !j.username && (targetId === "usr-farras" || targetUsername === "farras")) return true;
+    return false;
+  });
+
+  return [...filtered].sort((a, b) => {
+    const diffDate = String(b.tanggal || "").localeCompare(String(a.tanggal || ""));
+    if (diffDate !== 0) return diffDate;
+    const timeA = String(a.createdAt || a.id || "");
+    const timeB = String(b.createdAt || b.id || "");
+    return timeB.localeCompare(timeA);
+  });
 }
 
 export function addJournal(journalData) {
@@ -659,6 +680,7 @@ export function addJournal(journalData) {
       filePath: att.filePath || att.fotoPath || "",
       fileName: att.fileName || (att.filePath ? path.basename(att.filePath) : `berkas_${idx + 1}`),
       fileUrl: att.fileUrl || att.fotoUrl || "",
+      fotoUrl: att.fotoUrl || (att.type === "image" || att.evidenceType === "image" ? (att.fileUrl || "") : ""),
       fileSize: att.fileSize || "",
       ext: att.ext || (att.fileName ? path.extname(att.fileName).toLowerCase() : "")
     }));
@@ -670,22 +692,26 @@ export function addJournal(journalData) {
   // Isi fallback field legacy dari lampiran pertama untuk kompatibilitas penuh
   const firstAtt = attachments[0] || null;
   const legacyFotoPath = journalData.fotoPath || (firstAtt && firstAtt.type === "image" ? firstAtt.filePath : "");
-  const legacyFotoUrl = journalData.fotoUrl || (firstAtt && firstAtt.type === "image" ? (firstAtt.fileUrl || firstAtt.fotoUrl || "") : "");
+  const legacyFotoUrl = journalData.fotoUrl || (firstAtt && firstAtt.type === "image" ? (firstAtt.fotoUrl || firstAtt.fileUrl || "") : "");
   const legacyFilePath = journalData.filePath || (firstAtt && firstAtt.type !== "image" ? firstAtt.filePath : "");
   const legacyFileName = journalData.fileName || (firstAtt ? firstAtt.fileName : "");
   const legacyFileUrl = journalData.fileUrl || (firstAtt ? (firstAtt.fileUrl || firstAtt.fotoUrl || "") : "");
   const legacyEvidenceType = journalData.evidenceType || (firstAtt ? firstAtt.type : (attachments.length > 0 ? "document" : "none"));
 
+  // Bersihkan linkUrl agar tidak keliru menyimpan path file lokal /uploads/ sebagai link drive
+  const cleanLinkUrl = (journalData.linkUrl && !journalData.linkUrl.includes("/uploads/")) ? journalData.linkUrl : "";
+
   const newEntry = {
     id: journalData.id || `jrn-${Date.now()}`,
     createdAt: new Date().toISOString(),
     ...journalData,
+    linkUrl: cleanLinkUrl,
     attachments,
     fotoPath: legacyFotoPath,
     fotoUrl: legacyFotoUrl,
     filePath: legacyFilePath,
     fileName: legacyFileName,
-    fileUrl: legacyFileUrl,
+    fileUrl: legacyFileUrl || (journalData.linkUrl && journalData.linkUrl.includes("/uploads/") ? journalData.linkUrl : ""),
     evidenceType: legacyEvidenceType
   };
 
@@ -730,9 +756,6 @@ export function addAttachmentToJournal(journalId, attachment) {
   }
   if (!jrn.fileUrl) {
     jrn.fileUrl = newAtt.fileUrl;
-  }
-  if (!jrn.linkUrl && newAtt.fileUrl) {
-    jrn.linkUrl = newAtt.fileUrl;
   }
 
   saveStore(store);
